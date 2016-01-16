@@ -119,12 +119,65 @@
        `(program ,i ,@(foldr append `() (map patch-instr instrs)))]
       [_ `(,x86-e)])))
 
+; x86* -> actual, honest-to-goodness x86-64
+(define print-x86-64
+  (lambda (x86-e)
+    (match x86-e
+      [`(program ,i ,instrs)
+       (foldr string-append ""
+              `(,(format "\t.globl ~a\n" (label "main"))
+                ,(label "main:\n")
+                ;; Prelude
+                ,(display-instr "pushq" "%rbp")
+                ,(display-instr "movq" "%rsp, %rbp")
+                ,(display-instr "subq" "$~a, %rsp" i)
+                "\n"
+                ,(foldr string-append "" (map print-x86-64-instr instrs))
+                "\n"
+                ;; Conclusion
+                ,(display-instr "movq" "%rax, %rdi")
+                ,(display-instr "callq" (label "print_int"))))])))
+
+(define print-x86-64-instr
+  (match-lambda
+    [`(,op ,a1 ,a2) (display-instr "~a" "~a, ~a"
+                                   (symbol->string op)
+                                   (print-x86-64-arg a1)
+                                   (print-x86-64-arg a2))]
+    [`(callq ,l) (display-instr "callq" "~a"
+                                (label l))]
+    [`(,op ,a) (display-instr "~a" "~a"
+                              (symbol->string op)
+                              (print-x86-64-arg a))]
+    [`(,unary) (symbol->string unary)]))
+
+(define print-x86-64-arg
+  (match-lambda
+    [`(int ,i)   (format "$~a" i)]
+    [`(reg ,r)   (format "%~a" r)]
+    [`(stack ,s) (format "~a(%rbp)" s)]))
+
+(define display-instr
+  (match-lambda*
+    [(list-rest instr-name instr-body args)
+     (apply format ("\t" . string-append .
+                         (instr-name . string-append .
+                                     ("\t" . string-append .
+                                           (instr-body . string-append . "\n"))))
+            args)]))
+
+(define label
+  (lambda (l)
+    (match (system-type 'os)
+      [`macosx (string-append "_" l)]
+      [_ l])))
+
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("assign homes" ,(assign-homes '()) ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
-                    #; ("print x86" ,print-x86 #f)))
+                    ("print x86" ,print-x86-64 #f)))
 
 (interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2 3))
 (display "all tests passed!") (newline)
