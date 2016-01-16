@@ -114,7 +114,7 @@
     (match x86-e
       [`(,op (stack ,n1) (stack ,n2))
        `((movq (stack ,n1) (reg rax))
-         (,op  (reg rax)   (reg ,n2)))]
+         (,op  (reg rax)   (stack ,n2)))]
       [`(program ,i ,instrs ...)
        `(program ,i ,@(foldr append `() (map patch-instr instrs)))]
       [_ `(,x86-e)])))
@@ -178,6 +178,15 @@
                     ("assign homes" ,(assign-homes '()) ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
+
+(define uniquify->select-instructions
+  (compose1 print-x86-64
+            patch-instr
+            (assign-homes '())
+            select-instructions
+            (flatten '())
+            (curry list 'program)
+            (uniquify '())))
 
 (interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2 3))
 (compiler-tests "arithmetic with let" r1-passes "r1" (list 1 2 3))
