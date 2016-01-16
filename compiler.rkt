@@ -84,7 +84,7 @@
              ])]
          [else (error 'select-instructions "don't know how to handle this rhs~a")])
        ]
-      [`(return ,e) `((movq (,(if (integer? e) 'int 'var) e) (reg rax)))]
+      [`(return ,e) `((movq (,(if (integer? e) 'int 'var) ,e) (reg rax)))]
       [`(program (,vars ...) ,assignments ... (return ,final-e))
        `(program ,vars ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))])))
 
@@ -96,5 +96,5 @@
                     ;; ("patch instructions" ,patch-instructions ,interp-x86)
                     ;; ("print x86" ,print-x86 #f)))
 
-;(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2 3))
+(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2 3))
 (display "all tests passed!") (newline)
