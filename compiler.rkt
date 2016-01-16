@@ -68,7 +68,13 @@
 (define select-insturctions
   (lambda (c0-e)
     (match e
-      [`(assign ,var ,rhs) ...]
+      [`(assign ,var ,rhs)
+       (match rhs
+         [(? symbol?) `(movq (var ,rhs) (var ,var))]
+         [(? integer?) `(movq (int ,rhs) (var ,var))]
+         [`(read) `((callq read_int) (movq (reg rax) ,var))]
+         [`(,op ,es ...) ...])
+       ]
       [`(return ,e) `(movq ,e (reg rax))]
       [`(program (,vars ...) ,assignments ... (return ,final-e))
        `(program ,vars ,@(foldr append () (map select-instructions assignments)) (select-instructions `(return ,final-e)))])))
