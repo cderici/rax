@@ -123,7 +123,7 @@
 (define print-x86-64
   (lambda (x86-e)
     (match x86-e
-      [`(program ,i ,instrs)
+      [`(program ,i ,instrs ...)
        (foldr string-append ""
               `(,(format "\t.globl ~a\n" (label "main"))
                 ,(label "main:\n")
@@ -180,4 +180,5 @@
                     ("print x86" ,print-x86-64 #f)))
 
 (interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2 3))
+(compiler-tests "arithmetic with let" r1-passes "r1" (list 1 2 3))
 (display "all tests passed!") (newline)
