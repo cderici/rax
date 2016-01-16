@@ -65,28 +65,36 @@
 
 ;; C0 -> x86*
 ;; doesn't change the (program (vars) assignments ... return) structure
-(define select-insturctions
+(define select-instructions
   (lambda (c0-e)
-    (match e
+    (match c0-e
       [`(assign ,var ,rhs)
        (match rhs
-         [(? symbol?) `(movq (var ,rhs) (var ,var))]
-         [(? integer?) `(movq (int ,rhs) (var ,var))]
-         [`(read) `((callq read_int) (movq (reg rax) ,var))]
-         [`(,op ,es ...) ...])
+         [(? symbol?) `((movq (var ,rhs) (var ,var)))]
+         [(? integer?) `((movq (int ,rhs) (var ,var)))]
+         [`(read) `((callq read_int) (movq (reg rax) (var ,var)))]
+         [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) arg) (var ,var)) (negq (var ,var)))]
+         [`(+ ,arg1 ,arg2)
+          (cond
+            [(equal? arg1 var) `((addq arg1 var))]
+            [(equal? arg2 var) `((addq arg2 var))]
+            [else
+             `((movq (,(if (integer? arg1) 'int 'var) ,arg1) (var ,var))
+               (addq (,(if (integer? arg2) 'int 'var) ,arg2) (var ,var)))
+             ])]
+         [else (error 'select-instructions "don't know how to handle this rhs~a")])
        ]
-      [`(return ,e) `(movq ,e (reg rax))]
+      [`(return ,e) `((movq (,(if (integer? e) 'int 'var) e) (reg rax)))]
       [`(program (,vars ...) ,assignments ... (return ,final-e))
-       `(program ,vars ,@(foldr append () (map select-instructions assignments)) (select-instructions `(return ,final-e)))])))
-    
+       `(program ,vars ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))])))
 
 
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("flatten" ,(flatten '()) ,interp-C)))
-                    ;; ("select instructions" ,select-instructions ,interp-x86)
+                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("select instructions" ,select-instructions ,interp-x86)))
                     ;; ("assign homes" ,assign-homes ,interp-x86)
                     ;; ("patch instructions" ,patch-instructions ,interp-x86)
                     ;; ("print x86" ,print-x86 #f)))
 
-(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2))
+;(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2 3))
 (display "all tests passed!") (newline)
