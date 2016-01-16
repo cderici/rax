@@ -5,6 +5,7 @@
 (module+ test
   (require rackunit))
 
+;; R1 -> R1
 (define uniquify
   (lambda (alist)
     (lambda (e)
@@ -30,6 +31,7 @@
      (cons `(assign ,newVar ,(caddr (car assignments))) (cdr assignments)))
     (else (cons (car assignments) (change-var newVar oldVar (cdr assignments))))))
 
+;; R1 -> C0
 (define flatten
   (lambda (vars)
     (lambda (e)
@@ -61,6 +63,16 @@
              (values newVar (append (apply append assignments) (list `(assign ,newVar (,op ,@flats)))))))]))))
         
 
+;; C0 -> x86*
+;; doesn't change the (program (vars) assignments ... return) structure
+(define select-insturctions
+  (lambda (c0-e)
+    (match e
+      [`(assign ,var ,rhs) ...]
+      [`(return ,e) `(movq ,e (reg rax))]
+      [`(program (,vars ...) ,assignments ... (return ,final-e))
+       `(program ,vars ,@(foldr append () (map select-instructions assignments)) (select-instructions `(return ,final-e)))])))
+    
 
 
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
