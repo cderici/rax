@@ -88,11 +88,30 @@
       [`(program (,vars ...) ,assignments ... (return ,final-e))
        `(program ,vars ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))])))
 
+(define (varToStackPos expression listHomes)
+  (match expression
+    [`(var ,varID) (let ((stackPos (assv varID listHomes)))
+                     `(stack ,(cdr stackPos)))]
+    [else expression]))
 
+;; x86* -> x86*
+(define assign-homes
+  (lambda (listHomes)
+    (lambda (x86-e)
+      (match x86-e
+        [`(,bin-instr ,arg1 ,arg2) `(,bin-instr ,(varToStackPos arg1 listHomes)
+                                                ,(varToStackPos arg2 listHomes))]
+        [`(,unary-instr ,arg) `(,unary-instr ,(varToStackPos arg listHomes))]
+        [`(program (,vars ...)  ,instructions ...)
+         (let ((frame-size (ceiling (/ (length vars) 2)))
+               ;; every-one's on the stack!
+               (homes (map cons vars (build-list (length vars) (lambda (x) (* (add1 x) -8))))))
+           `(program ,frame-size ,@(map (assign-homes homes) instructions)))]))))
+                                        
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
-                    ("select instructions" ,select-instructions ,interp-x86)))
-                    ;; ("assign homes" ,assign-homes ,interp-x86)
+                    ("select instructions" ,select-instructions ,interp-x86)
+                    ("assign homes" ,(assign-homes '()) ,interp-x86)))
                     ;; ("patch instructions" ,patch-instructions ,interp-x86)
                     ;; ("print x86" ,print-x86 #f)))
 
