@@ -103,7 +103,7 @@
                                                 ,(varToStackPos arg2 listHomes))]
         [`(,unary-instr ,arg) `(,unary-instr ,(varToStackPos arg listHomes))]
         [`(program (,vars ...)  ,instructions ...)
-         (let ((frame-size (ceiling (/ (length vars) 2)))
+         (let ((frame-size (* 16 (ceiling (/ (length vars) 2))))
                ;; every-one's on the stack!
                (homes (map cons vars (build-list (length vars) (lambda (x) (* (add1 x) -8))))))
            `(program ,frame-size ,@(map (assign-homes homes) instructions)))]))))
