@@ -136,7 +136,10 @@
                 "\n"
                 ;; Conclusion
                 ,(display-instr "movq" "%rax, %rdi")
-                ,(display-instr "callq" (label "print_int"))))])))
+                ,(display-instr "callq" (label "print_int"))
+                ,(display-instr "addq" "$~a, %rsp" i)
+                ,(display-instr "popq" "%rbp")
+                ,(display-instr "retq" "")))])))
 
 (define print-x86-64-instr
   (match-lambda
