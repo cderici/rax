@@ -53,7 +53,7 @@
              (else
               (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))
          ]
-
+        
         [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
                          (let ([vars (getVars assignments)])
                            `(program ,vars ,@assignments (return ,final-exp))))]
@@ -182,15 +182,27 @@
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
-(define uniquify->select-instructions
-  (compose1 print-x86-64
-            patch-instr
-            (assign-homes '())
-            select-instructions
-            (flatten '())
+(define uniquify->flatten
+  (compose1 (flatten '())
             (curry list 'program)
             (uniquify '())))
 
-(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (list 1 2 3))
-(compiler-tests "arithmetic with let" r1-passes "r1" (list 1 2 3))
+(define uniquify->select-instructions
+  (compose1 select-instructions
+            uniquify->flatten))
+
+(define uniquify->assign-homes
+  (compose1 (assign-homes '())
+            uniquify->select-instructions))
+
+(define uniquify->patch-instr
+  (compose1 patch-instr
+            uniquify->assign-homes))
+
+(define uniquify->print
+  (compose1 print-x86-64
+            uniquify->patch-instr))
+
+(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (range 1 5))
+(compiler-tests "arithmetic with let" r1-passes "r1" (range 1 5))
 (display "all tests passed!") (newline)
