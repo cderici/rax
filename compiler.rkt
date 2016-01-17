@@ -53,7 +53,7 @@
              (else
               (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))
          ]
-
+        
         [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
                          (let ([vars (getVars assignments)])
                            `(program ,vars ,@assignments (return ,final-exp))))]
@@ -177,6 +177,7 @@
       [`macosx (string-append "_" l)]
       [_ l])))
 
+; [Pass]
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
@@ -184,27 +185,22 @@
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
-(define uniquify->flatten
-  (compose1 (flatten '())
-            (curry list 'program)
-            (uniquify '())))
+; [Pass] -> Compiler
+(define passes->compiler
+  (lambda (wrap-program passes)
+    (foldl (match-lambda**
+            [((list _ pass _) q-pass) (compose1 pass q-pass)])
+           (if wrap-program
+               (curry list `program)
+               identity)
+           passes)))
 
-(define uniquify->select-instructions
-  (compose1 select-instructions
-            uniquify->flatten))
+(define uniquify->print            (passes->compiler #t       r1-passes))
+(define flatten->print             (passes->compiler #t (drop r1-passes 1)))
+(define select-instructions->print (passes->compiler #f (drop r1-passes 2)))
+(define assign-homes->print        (passes->compiler #f (drop r1-passes 3)))
+(define patch-instructions->print  (passes->compiler #f (drop r1-passes 4)))
 
-(define uniquify->assign-homes
-  (compose1 (assign-homes '())
-            uniquify->select-instructions))
-
-(define uniquify->patch-instr
-  (compose1 patch-instr
-            uniquify->assign-homes))
-
-(define uniquify->print
-  (compose1 print-x86-64
-            uniquify->patch-instr))
-
-(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (range 1 5))
-(compiler-tests "arithmetic with let" r1-passes "r1" (range 1 5))
-(display "all tests passed!") (newline)
+;(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (range 1 5))
+;(compiler-tests "arithmetic with let" r1-passes "r1" (range 1 5))
+;(display "all tests passed!") (newline)
