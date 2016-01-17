@@ -53,7 +53,7 @@
              (else
               (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))
          ]
-        
+
         [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
                          (let ([vars (getVars assignments)])
                            `(program ,vars ,@assignments (return ,final-exp))))]
@@ -163,10 +163,12 @@
 (define display-instr
   (match-lambda*
     [(list-rest instr-name instr-body args)
-     (apply format ("\t" . string-append .
-                         (instr-name . string-append .
-                                     ("\t" . string-append .
-                                           (instr-body . string-append . "\n"))))
+     (apply format (foldr string-append ""
+                          `("\t"
+                            ,instr-name
+                            "\t"
+                            ,instr-body
+                            "\n"))
             args)]))
 
 (define label
