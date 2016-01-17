@@ -1,3 +1,3 @@
 .PHONY: clean
 clean:
-	rm -f a.out tests/*.s tests/*~
+	rm -f *.out *.exe *.s *~
