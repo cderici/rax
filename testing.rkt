@@ -52,7 +52,7 @@
                     (cautious-passes passes)
                     (call-with-caution interp)
                     name range)
-      ;(compiler-tests caption passes        name range)
+      (compiler-tests caption passes        name range)
       )))
 
 
@@ -70,9 +70,13 @@
     (define r0-tests
       (tests "Jeremy's tests" uniquify-passes interp-scheme "r0" r0-range))
 
-    (define r1-range (irange 1 5))
+    (define r1-range (irange 1 19))
     (define r1-tests
-      (tests "arithmetic with let" uniquify-passes interp-scheme "r1" r1-range))
+      (tests "Jeremy's tests 2: electric boogaloo" uniquify-passes interp-scheme "r1" r1-range))
+
+    (define uniquify-range (irange 1 5))
+    (define uniquify-tests
+      (tests "uniquify" uniquify-passes interp-scheme "uniquify" uniquify-range))
 
     (define flatten-range (irange 1 3))
     (define flatten-tests
@@ -81,9 +85,10 @@
     (define select-instructions-range (irange 1 3))
     (define select-instructions-tests
       (tests "select-instructions" select-instructions-passes interp-C "select" select-instructions-range))
-    
+
     (r0-tests)
     (r1-tests)
+    (uniquify-tests)
     (flatten-tests)
     (select-instructions-tests)
     (display "all tests passed!") (newline)
