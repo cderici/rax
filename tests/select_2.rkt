@@ -1,6 +1,0 @@
-(program (tmp.1 a tmp.2 b)
-  (assign tmp.1 42)
-  (assign a tmp.1)
-  (assign tmp.2 a)
-  (assign b tmp.2)
-  (return b))

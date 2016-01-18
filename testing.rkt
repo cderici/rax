@@ -27,34 +27,12 @@
   (lambda (b e)
     (range b (+ e 1))))
 
-
-;; removes extra program line if there is one
-(define call-with-caution
-  (lambda (func)
-    (lambda (sexp)
-      (match  sexp
-        [`(program (program (,v ...) ,assgn ... (return ,e)))
-         (func `(program ,v ,@assgn (return ,e)))]
-        [else (func sexp)]))))
-
-(define cautious-passes
-  (lambda (passes)
-    (map (lambda (pass)
-           (list (car pass)
-                 (call-with-caution (cadr pass))
-                 (caddr pass)))
-         passes)))
-
 (define tests
   (lambda (caption passes interp name range)
     (lambda ()
-      (interp-tests caption
-                    (cautious-passes passes)
-                    (call-with-caution interp)
-                    name range)
+      (interp-tests   caption passes interp name range)
       (compiler-tests caption passes        name range)
       )))
-
 
 (define all-tests
   (lambda (passes)
@@ -82,14 +60,9 @@
     (define flatten-tests
       (tests "flatten" flatten-passes interp-scheme "flatten" flatten-range))
 
-    (define select-instructions-range (irange 1 3))
-    (define select-instructions-tests
-      (tests "select-instructions" select-instructions-passes interp-C "select" select-instructions-range))
-
     (r0-tests)
     (r1-tests)
     (uniquify-tests)
     (flatten-tests)
-    (select-instructions-tests)
     (display "all tests passed!") (newline)
     ))
