@@ -207,29 +207,38 @@
 (define assign-homes->print        (passes->compiler #f assign-homes-passes))
 (define patch-instructions->print  (passes->compiler #f patch-instructions-passes))
 
+(define irange
+  (lambda (b e)
+    (range b (+ e 1))))
+
 (define tests
   (lambda (caption passes interp name range)
     (lambda ()
       (interp-tests   caption passes interp name range)
       (compiler-tests caption passes        name range))))
 
-(define r0-range (range 1 5))
+(define r0-range (irange 1 4))
 (define r0-tests
   (tests "Jeremy's tests" uniquify-passes interp-scheme "r0" r0-range))
 
-(define r1-range (range 1 6))
+(define r1-range (irange 1 5))
 (define r1-tests
   (tests "arithmetic with let" uniquify-passes interp-scheme "r1" r1-range))
 
-(define flatten-range (range 1 3))
+(define flatten-range (irange 1 3))
 (define flatten-tests
   (tests "flatten" flatten-passes interp-scheme "flatten" flatten-range))
 
+(define select-instructions-range (irange 1 3))
+(define select-instructions-tests
+  (tests "select-instructions" select-instructions-passes interp-C "select" select-instructions-range))
+
 (define all-tests
   (lambda ()
-    (r0-tests)
-    (r1-tests)
-    (flatten-tests)
+    ;(r0-tests)
+    ;(r1-tests)
+    ;(flatten-tests)
+    (select-instructions-tests)
     ))
 
 (all-tests)
