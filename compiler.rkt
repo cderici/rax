@@ -2,7 +2,8 @@
 
 (require "utilities.rkt" "interp.rkt" "testing.rkt")
 
-(provide uniquify
+(provide r1-passes
+         uniquify
          flatten
          select-instructions
          assign-homes
