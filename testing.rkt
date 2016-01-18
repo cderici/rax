@@ -2,7 +2,7 @@
 
 (require "utilities.rkt" "interp.rkt")
 
-(provide all-tests)
+(provide all-tests passes->compiler)
 
 ; [Pass] -> Compiler
 (define passes->compiler
