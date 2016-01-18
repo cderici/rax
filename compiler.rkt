@@ -137,14 +137,14 @@
                 ;; Prelude
                 ,(display-instr "pushq" "%rbp")
                 ,(display-instr "movq" "%rsp, %rbp")
-                ,(display-instr "subq" "$~a, %rsp" i)
+                ,(if (null? i) "" (display-instr "subq" "$~a, %rsp" i))
                 "\n"
                 ,(foldr string-append "" (map print-x86-64-instr instrs))
                 "\n"
                 ;; Conclusion
                 ,(display-instr "movq" "%rax, %rdi")
                 ,(display-instr "callq" (label "print_int"))
-                ,(display-instr "addq" "$~a, %rsp" i)
+                ,(if (null? i) "" (display-instr "addq" "$~a, %rsp" i))
                 ,(display-instr "popq" "%rbp")
                 ,(display-instr "retq" "")))])))
 
