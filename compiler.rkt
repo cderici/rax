@@ -53,7 +53,7 @@
              (else
               (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))
          ]
-        
+
         [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
                          (let ([vars (getVars assignments)])
                            `(program ,vars ,@assignments (return ,final-exp))))]
@@ -195,17 +195,17 @@
                identity)
            passes)))
 
-(define uniquify-passes                  r1-passes)
-(define flatten-passes             (drop uniquify-passes            1))
-(define select-instructions-passes (drop flatten-passes             1))
+(define uniquify-passes            r1-passes)
+(define flatten-passes             (drop uniquify-passes 1))
+(define select-instructions-passes (drop flatten-passes 1))
 (define assign-homes-passes        (drop select-instructions-passes 1))
-(define patch-instructions-passes  (drop assign-homes-passes        1))
+(define patch-instructions-passes  (drop assign-homes-passes 1))
 
-(define uniquify->print            uniquify-passes)
-(define flatten->print             flatten-passes)
-(define select-instructions->print select-instructions-passes)
-(define assign-homes->print        assign-homes-passes)
-(define patch-instructions->print  patch-instructions-passes)
+(define uniquify->print            (passes->compiler #t uniquify-passes))
+(define flatten->print             (passes->compiler #t flatten-passes))
+(define select-instructions->print (passes->compiler #f select-instructions-passes))
+(define assign-homes->print        (passes->compiler #f assign-homes-passes))
+(define patch-instructions->print  (passes->compiler #f patch-instructions-passes))
 
 (define tests
   (lambda (caption passes interp name range)
@@ -221,10 +221,16 @@
 (define r1-tests
   (tests "arithmetic with let" uniquify-passes interp-scheme "r1" r1-range))
 
+(define flatten-range (range 1 3))
+(define flatten-tests
+  (tests "flatten" flatten-passes interp-scheme "flatten" flatten-range))
+
 (define all-tests
   (lambda ()
     (r0-tests)
-    (r1-tests)))
+    (r1-tests)
+    (flatten-tests)
+    ))
 
 (all-tests)
 (display "all tests passed!") (newline)
