@@ -73,11 +73,11 @@
          [(? symbol?) `((movq (var ,rhs) (var ,var)))]
          [(? integer?) `((movq (int ,rhs) (var ,var)))]
          [`(read) `((callq read_int) (movq (reg rax) (var ,var)))]
-         [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) arg) (var ,var)) (negq (var ,var)))]
+         [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) ,arg) (var ,var)) (negq (var ,var)))]
          [`(+ ,arg1 ,arg2)
           (cond
-            [(equal? arg1 var) `((addq arg1 var))]
-            [(equal? arg2 var) `((addq arg2 var))]
+            [(equal? arg1 var) `((addq ,arg1 ,var))]
+            [(equal? arg2 var) `((addq ,arg2 ,var))]
             [else
              `((movq (,(if (integer? arg1) 'int 'var) ,arg1) (var ,var))
                (addq (,(if (integer? arg2) 'int 'var) ,arg2) (var ,var)))
@@ -201,6 +201,9 @@
 (define assign-homes->print        (passes->compiler #f (drop r1-passes 3)))
 (define patch-instructions->print  (passes->compiler #f (drop r1-passes 4)))
 
-;(interp-tests "arithmetic with let" r1-passes interp-scheme "r1" (range 1 5))
-;(compiler-tests "arithmetic with let" r1-passes "r1" (range 1 5))
-;(display "all tests passed!") (newline)
+(interp-tests   "Jeremy's tests" r1-passes interp-scheme "r0" (range 1 5))
+(compiler-tests "Jeremy's tests" r1-passes               "r0" (range 1 5))
+
+;(interp-tests   "arithmetic with let" r1-passes interp-scheme "r1" (range 1 5))
+;(compiler-tests "arithmetic with let" r1-passes               "r1" (range 1 5))
+(display "all tests passed!") (newline)
