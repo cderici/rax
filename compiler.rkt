@@ -1,9 +1,15 @@
 #lang racket
 
-(require "utilities.rkt" "interp.rkt")
+(require "utilities.rkt" "interp.rkt" "testing.rkt")
 
-(module+ test
-  (require rackunit))
+(provide uniquify
+         flatten
+         select-instructions
+         assign-homes
+         patch-instr
+         print-x86-64
+         )
+
 
 ;; R1 -> R1
 (define uniquify
@@ -185,61 +191,6 @@
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
-; [Pass] -> Compiler
-(define passes->compiler
-  (lambda (wrap-program passes)
-    (foldl (match-lambda**
-            [((list _ pass _) q-pass) (compose1 pass q-pass)])
-           (if wrap-program
-               (curry list `program)
-               identity)
-           passes)))
 
-(define uniquify-passes            r1-passes)
-(define flatten-passes             (drop uniquify-passes 1))
-(define select-instructions-passes (drop flatten-passes 1))
-(define assign-homes-passes        (drop select-instructions-passes 1))
-(define patch-instructions-passes  (drop assign-homes-passes 1))
+(all-tests r1-passes)
 
-(define uniquify->print            (passes->compiler #t uniquify-passes))
-(define flatten->print             (passes->compiler #t flatten-passes))
-(define select-instructions->print (passes->compiler #f select-instructions-passes))
-(define assign-homes->print        (passes->compiler #f assign-homes-passes))
-(define patch-instructions->print  (passes->compiler #f patch-instructions-passes))
-
-(define irange
-  (lambda (b e)
-    (range b (+ e 1))))
-
-(define tests
-  (lambda (caption passes interp name range)
-    (lambda ()
-      (interp-tests   caption passes interp name range)
-      (compiler-tests caption passes        name range))))
-
-(define r0-range (irange 1 4))
-(define r0-tests
-  (tests "Jeremy's tests" uniquify-passes interp-scheme "r0" r0-range))
-
-(define r1-range (irange 1 5))
-(define r1-tests
-  (tests "arithmetic with let" uniquify-passes interp-scheme "r1" r1-range))
-
-(define flatten-range (irange 1 3))
-(define flatten-tests
-  (tests "flatten" flatten-passes interp-scheme "flatten" flatten-range))
-
-(define select-instructions-range (irange 1 3))
-(define select-instructions-tests
-  (tests "select-instructions" select-instructions-passes interp-C "select" select-instructions-range))
-
-(define all-tests
-  (lambda ()
-    ;(r0-tests)
-    ;(r1-tests)
-    ;(flatten-tests)
-    (select-instructions-tests)
-    ))
-
-(all-tests)
-(display "all tests passed!") (newline)
