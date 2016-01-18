@@ -195,15 +195,36 @@
                identity)
            passes)))
 
-(define uniquify->print            (passes->compiler #t       r1-passes))
-(define flatten->print             (passes->compiler #t (drop r1-passes 1)))
-(define select-instructions->print (passes->compiler #f (drop r1-passes 2)))
-(define assign-homes->print        (passes->compiler #f (drop r1-passes 3)))
-(define patch-instructions->print  (passes->compiler #f (drop r1-passes 4)))
+(define uniquify-passes                  r1-passes)
+(define flatten-passes             (drop uniquify-passes            1))
+(define select-instructions-passes (drop flatten-passes             1))
+(define assign-homes-passes        (drop select-instructions-passes 1))
+(define patch-instructions-passes  (drop assign-homes-passes        1))
 
-(interp-tests   "Jeremy's tests" r1-passes interp-scheme "r0" (range 1 5))
-(compiler-tests "Jeremy's tests" r1-passes               "r0" (range 1 5))
+(define uniquify->print            uniquify-passes)
+(define flatten->print             flatten-passes)
+(define select-instructions->print select-instructions-passes)
+(define assign-homes->print        assign-homes-passes)
+(define patch-instructions->print  patch-instructions-passes)
 
-;(interp-tests   "arithmetic with let" r1-passes interp-scheme "r1" (range 1 5))
-;(compiler-tests "arithmetic with let" r1-passes               "r1" (range 1 5))
+(define tests
+  (lambda (caption passes interp name range)
+    (lambda ()
+      (interp-tests   caption passes interp name range)
+      (compiler-tests caption passes        name range))))
+
+(define r0-range (range 1 5))
+(define r0-tests
+  (tests "Jeremy's tests" uniquify-passes interp-scheme "r0" r0-range))
+
+(define r1-range (range 1 6))
+(define r1-tests
+  (tests "arithmetic with let" uniquify-passes interp-scheme "r1" r1-range))
+
+(define all-tests
+  (lambda ()
+    (r0-tests)
+    (r1-tests)))
+
+(all-tests)
 (display "all tests passed!") (newline)
