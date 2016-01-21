@@ -30,8 +30,9 @@
 (define tests
   (lambda (caption passes interp name range)
     (lambda ()
-      (interp-tests   caption passes interp name range)
-      (compiler-tests caption passes        name range)
+      (interp-tests caption passes interp name range)
+      (compiler-tests caption passes name range)
+
       )))
 
 (define all-tests
