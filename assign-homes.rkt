@@ -37,12 +37,7 @@
 ;; just for debugging
 (define (node->list n) (list (node-name n) (node-color n) (node-satur n)))
 
-;; choose-color : (listof Number) Graph -> Number
-(define (choose-color saturation move-graph)
-  (let* ([maxSatur (apply max (if (empty? saturation) '(0) saturation))]
-         [candidates (range 0 (+ 2 maxSatur))]
-         [chooseFrom (remq* saturation candidates)])
-    (apply min chooseFrom)))
+(define colored? node-color)
 
 (define (prep vars)
   (map (lambda (var) (node var #f '())) vars))
@@ -63,6 +58,24 @@
                          (cons (update-saturation (car var-nodes) color) updated-nodes))]
     [else (update-saturations (cdr var-nodes) adj-node-names color (cons (car var-nodes) updated-nodes))]))
 
+;; choose-color : Symbol (listof nodes) (listof color) Graph -> color (number)
+(define (choose-color nodeName var-nodes saturation move-graph)
+  (let* ([maxSatur (apply max (if (empty? saturation) '(0) saturation))]
+         [candidates (range 0 (+ 2 maxSatur))]
+         [chooseFrom (remq* saturation candidates)]
+
+         [move-related-node-names (adjacent move-graph nodeName)]
+         [move-related-node-colors (foldr (lambda (nd colors)
+                                            (if (and (colored? nd)
+                                                     (set-member? move-related-node-names (node-name nd)))
+                                                (cons (node-color nd) colors)
+                                                colors))
+                                          '() var-nodes)]
+         )
+    (if (empty? move-related-node-colors)
+        (apply min chooseFrom)
+        (car move-related-node-colors))
+    ))
 
 ;; graph-coloring : Graph (listof node) Graph <accummulator> : (listof <colored>node)
 ;; greedy coloring of the nodes in the given graph using saturation info (most-constrained-first heuristic)
@@ -73,7 +86,7 @@
     [else (let* ([maxSaturatedNode (choose-max-satur var-nodes)]
                  [maxNodeName (node-name maxSaturatedNode)]
                  [maxNodeSatur (node-satur maxSaturatedNode)]
-                 [nodeColor (choose-color maxNodeSatur move-graph)]
+                 [nodeColor (choose-color maxNodeName var-nodes maxNodeSatur move-graph)]
                  
                  [newVars (remf (lambda (node) (symbol=? maxNodeName (node-name node))) var-nodes)]
                  [updatedVars (update-saturations newVars (adjacent inter-graph maxNodeName) nodeColor '())]
@@ -140,12 +153,21 @@
                 [`(,unary-instr ,arg) `(,unary-instr ,((varToLocStmnt vars-colors color-homes) arg))]
                 [else (error 'assign-homes "we have an expression that's netiher binary nor unary!")])))))
 
+(define (construct-move-graph! instructions graph)
+  (cond
+    ((empty? instructions) graph)
+    (else (match (car instructions)
+            [`(movq (var ,v1) (var ,v2)) (begin
+                                             (add-edge graph v1 v2)
+                                             (construct-move-graph! (cdr instructions) graph))]
+            [else (construct-move-graph! (cdr instructions) graph)]))))
+
 (define allocate-registers
   (lambda (numOfRegs)
     (match-lambda
       [`(program (,formals ... ,graph) ,instructions ...)
        (let* ([var-nodes (prep formals)]
-              [move-graph #f])
+              [move-graph (construct-move-graph! instructions (make-graph formals))])
          (let-values ([(num-of-stack-slots mapping-function)
                        (assign-homes graph var-nodes instructions move-graph numOfRegs)])
            `(program ,(* 16 (ceiling (/ num-of-stack-slots 2)))
