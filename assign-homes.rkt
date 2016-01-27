@@ -10,7 +10,7 @@
 (define (register-allocation num-of-registers)
   (lambda (x86*-prog)
     (allocate-registers (build-interference (uncover-live x86*-prog)))))
-  
+
 ; x86* -> x86*
 (define uncover-live
   (match-lambda
@@ -92,7 +92,7 @@
                   gr)))
           graph
           live-after-set))]
-      [`(,(or `addq `subq) ,_ ,d)
+      [(or `(,(or `addq `subq) ,_ ,d) `(negq ,d))
        (let [(d-pl (arg-payload d))]
          (sequence-fold
           (λ (gr v)
@@ -151,7 +151,7 @@
   (let* ([maxSatur (apply max (if (empty? saturation) '(0) saturation))]
          [candidates (range 0 (+ 2 maxSatur))]
          [chooseFrom (remq* saturation candidates)]
-
+         
          [move-related-node-names (adjacent move-graph nodeName)]
          [move-related-node-colors (foldr (lambda (nd colors)
                                             (if (and (colored? nd)
@@ -189,7 +189,7 @@
   (let* ([color-map (graph-coloring inter-graph var-nodes move-graph '())]
          [numColors (add1 (node-color (argmax (lambda (n) (node-color n)) color-map)))]
          [colors (range 0 numColors)]
-
+         
          ;; just to have the kinds of registers in hand
          [dont-touch-regs '(rsp rbp rax)]
          [caller-save-regs '(rax rdx rcx rsi rdi r8 r9 r10 r11)]
@@ -197,9 +197,9 @@
          [all-registers (append caller-save-regs callee-save-regs)]
          ;; disregarding caller/callee saveness
          [usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
-
+         
          [numUsableRegs (length usable-regs)])
-
+    
     (if (<= numColors numUsableRegs)
         ;; case-> the usable registers are enough to hold our variables
         (values 0 color-map (map cons colors (take usable-regs numColors)))
@@ -246,8 +246,8 @@
     ((empty? instructions) graph)
     (else (match (car instructions)
             [`(movq (var ,v1) (var ,v2)) (begin
-                                             (add-edge graph v1 v2)
-                                             (construct-move-graph! (cdr instructions) graph))]
+                                           (add-edge graph v1 v2)
+                                           (construct-move-graph! (cdr instructions) graph))]
             [else (construct-move-graph! (cdr instructions) graph)]))))
 
 (define allocate-registers
