@@ -8,6 +8,7 @@
          flatten
          select-instructions
          assign-homes
+         register-allocation
          patch-instr
          print-x86-64
          )
@@ -169,7 +170,7 @@
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
-                    ("assign homes" ,(assign-homes '()) ,interp-x86)
+                    ("register-allocation" ,(register-allocation 5) ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
