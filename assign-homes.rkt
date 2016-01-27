@@ -187,7 +187,7 @@
 ;; exmpl output-> (values (listof <colored>node) '((0 . rdx) (1 . -8) (2 . -16)))
 (define (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)
   (let* ([color-map (graph-coloring inter-graph var-nodes move-graph '())]
-         [numColors (add1 (node-color (argmax (lambda (n) (node-color n)) color-map)))]
+         [numColors (if (empty? color-map) 0 (add1 (node-color (argmax node-color color-map))))]
          [colors (range 0 numColors)]
          
          ;; just to have the kinds of registers in hand
