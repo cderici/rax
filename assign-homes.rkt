@@ -9,7 +9,7 @@
 
 (define (register-allocation num-of-registers)
   (lambda (x86*-prog)
-    (allocate-registers (build-interference (uncover-live x86*-prog)))))
+    ((allocate-registers num-of-registers) (build-interference (uncover-live x86*-prog)))))
 
 ; x86* -> x86*
 (define uncover-live
