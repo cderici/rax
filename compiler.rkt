@@ -24,7 +24,7 @@
                            (error 'uniquify "something's wrong")
                            (cdr idNewID)))]
         [(? integer?) e]
-        [`(let ([,x ,e]) ,body) (let ([newID (gensym)])
+        [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
         [`(program ,e) `(program ,((uniquify alist) e))]
         [`(,op ,es ...) `(,op ,@(map (uniquify alist) es))]))))
@@ -68,7 +68,7 @@
                            `(program ,vars ,@assignments (return ,final-exp))))]
         [`(,op ,es ...)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
-           (let ((newVar (gensym)))
+           (let ((newVar (gensym `tmp)))
              (values newVar (append (apply append assignments) (list `(assign ,newVar (,op ,@flats)))))))]))))
 
 
