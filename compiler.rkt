@@ -101,7 +101,7 @@
 (define patch-instr
   (lambda (x86-e)
     (match x86-e
-      ; [`(,movq (reg ,r) (reg ,r)) `()]
+      [`(movq (reg ,r) (reg ,r)) `()]
       [`(,op (stack ,n1) (stack ,n2))
        `((movq (stack ,n1) (reg rax))
          (,op  (reg rax)   (stack ,n2)))]
