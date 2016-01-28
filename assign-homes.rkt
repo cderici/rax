@@ -196,7 +196,7 @@
          [callee-save-regs '(rsp rbp rbx r12 r13 r14 r15)]
          [all-registers (append caller-save-regs callee-save-regs)]
          ;; disregarding caller/callee saveness
-         [usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
+         [usable-regs (take (remq* (append caller-save-regs dont-touch-regs) all-registers) num-of-registers)]
          
          [numUsableRegs (length usable-regs)])
     
