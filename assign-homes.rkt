@@ -205,21 +205,29 @@
       ((empty? colors) outVals)
       ((<= numUsableRegs 0)
        (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers numUsableRegs
-                               (list (cons `(,(car colors) . ,current-stack-loc) current-map)
+                               (list (cons `(,(car colors) . ,(* current-stack-loc -8)) current-map)
                                      current-usable-regs
-                                     (- current-stack-loc 8))))
+                                     (add1 current-stack-loc))))
       (else
        (let* ([c-color (car colors)]
-              [varname (cdr (assv c-color colors-names))]
-              [adj (adjacent inter-graph varname)]
-              [picked-reg (pick-a-reg adj current-usable-regs)]
+              [var-names-has-c-color  (map cdr (filter (lambda (c-n)
+                                                         (= c-color (car c-n))) colors-names))]
+              [adj-sets (map (lambda (var-name) (adjacent inter-graph var-name)) var-names-has-c-color)]
+              [union-list-of-adjs (foldr (lambda (adjs union)
+                                           (set-union adjs union))
+                                         (set)
+                                         adj-sets)]
+              #;[varname (begin (display colors-names)(newline)
+                              (cdr (assv c-color colors-names)))]
+              #;[adj (adjacent inter-graph varname)]
+              [picked-reg (pick-a-reg union-list-of-adjs current-usable-regs)]
               )
          (if (not picked-reg) ; pick-a-reg signaled that we cannot find a register for that color
              ; so we're assigning a stack position for it and continue
              (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers numUsableRegs
-                                      (list (cons `(,c-color . ,current-stack-loc) current-map)
+                                      (list (cons `(,c-color . ,(* current-stack-loc -8)) current-map)
                                             current-usable-regs
-                                            (- current-stack-loc 8)))
+                                            (add1 current-stack-loc)))
              ; we have a picked-reg, put it and continue
              (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers (sub1 numUsableRegs)
                                       (list (cons `(,c-color . ,picked-reg) current-map)
@@ -238,11 +246,13 @@
          [colors (range 0 numColors)]
          
          ;; just to have the kinds of registers in hand
-         ;[dont-touch-regs '(rsp rbp rax)]
+         [dont-touch-regs '(rsp rbp rax)]
          [caller-save-regs '(rax rdx rcx rsi rdi r8 r9 r10 r11)] ; rax
          [callee-save-regs '(rsp rbp rbx r12 r13 r14 r15)] ; rsp rbp
          
-         [all-registers (append caller-save-regs callee-save-regs)]
+         [all-registers (remq* dont-touch-regs
+                               (append caller-save-regs callee-save-regs))]
+         
          ;; disregarding caller/callee saveness
          ;[usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
          
@@ -251,7 +261,7 @@
                             num-of-registers)]
          )
     (let* ([mapResults (map-colors-to-locations colors colors-names inter-graph all-registers numUsableRegs
-                                                (list '() all-registers -8))]
+                                                (list '() all-registers 0))]
            [color-to-loc-mapping (car mapResults)]
            [current-usable-reg-dummy (cadr mapResults)]
            [howmany-stack-locs (caddr mapResults)]
