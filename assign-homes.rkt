@@ -185,79 +185,82 @@
                  )
             (graph-coloring inter-graph updatedVars move-graph (cons (node maxNodeName nodeColor maxNodeSatur) mapping)))]))
 
-(define (pick-a-reg adj-set usable-regs caller-save-regs)
-  (let ([picked-reg (list-ref usable-regs (random (length usable-regs)))])
-    (if (ormap (lambda (reg) (set-member? adj-set picked-reg)) caller-save-regs)
-        (pick-a-reg adj-set usable-regs caller-save-regs) ; pick again
-        picked-reg)))
+(define (pick-a-reg adj-set usable-regs)
+  (if (empty? usable-regs)
+      false
+      (let ([picked-reg (car usable-regs)])
+        (if (set-member? adj-set picked-reg)
+            (pick-a-reg adj-set (cdr usable-regs)) ; pick again
+            picked-reg);; found
+        )))
 
 
-(define (pick-registers-for-these colors colors-names inter-graph caller-save-regs callee-save-regs)
-  (car ;; returning only the map
-   (foldr (lambda (color map+usableRegs)
-            (let* ([varname (cdr (assv color colors-names))]
-                   [adj (adjacent inter-graph varname)]
-                   [usable-regs (cdr map+usableRegs)]
-                   [picked-reg (pick-a-reg adj usable-regs caller-save-regs)]
-                   
-                   [current-map (car map+usableRegs)])
-              (cons (cons `(,color . ,picked-reg) current-map)
-                    (remv picked-reg usable-regs))))
-          `(() . ,(append caller-save-regs callee-save-regs))
-          colors)))
-  
 
-(define (pick-registers-for-these-2 colors colors-names inter-graph caller-save-regs callee-save-regs)
-  (let ([caller-saves (list->mutable-set caller-save-regs)]
-        [callee-saves (list->mutable-set callee-save-regs)]
-        [pick-callee true]) ;; picking from different set each time (unless there's an interference, see below)
-    (map (lambda (color)
-           (let* ([varname (cdr (assv color colors-names))]
-                  [adj (adjacent inter-graph varname)]
-                  [interference? (ormap (lambda (reg) (set-member? adj reg)) caller-save-regs)]
-                  
-                  [pick-from-callee (if interference?
-                                        true
-                                        (begin (set! pick-callee (not pick-callee)) (not pick-callee)))] ; I know, I know...
-                  ) ;; I don't think there can be any other caller-save reg.)
-             (cons color
-                   (if pick-from-callee
-                       (let ([chosen (set-first callee-saves)]) (begin (set-remove! callee-saves chosen) chosen))
-                       (let ([chosen (set-first caller-saves)]) (begin (set-remove! caller-saves chosen) chosen))))))
-         colors)))
-
+;; produce -> (values color-to-loc-mapping current-usable-regs howmany-stack-locs)
+(define (map-colors-to-locations colors colors-names inter-graph all-registers numUsableRegs outVals)
+  (let* ((current-map (car outVals)) ;; ((0 . rdx) (1 . -8) (2 . -16)))
+         (current-usable-regs (cadr outVals)) ;; list of symbols (registers)
+         (current-stack-loc (caddr outVals))) ;; negative number
+    (cond
+      ((empty? colors) outVals)
+      ((<= numUsableRegs 0)
+       (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers numUsableRegs
+                               (list (cons `(,(car colors) . ,current-stack-loc) current-map)
+                                     current-usable-regs
+                                     (- current-stack-loc 8))))
+      (else
+       (let* ([c-color (car colors)]
+              [varname (cdr (assv c-color colors-names))]
+              [adj (adjacent inter-graph varname)]
+              [picked-reg (pick-a-reg adj current-usable-regs)]
+              )
+         (if (not picked-reg) ; pick-a-reg signaled that we cannot find a register for that color
+             ; so we're assigning a stack position for it and continue
+             (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers numUsableRegs
+                                      (list (cons `(,c-color . ,current-stack-loc) current-map)
+                                            current-usable-regs
+                                            (- current-stack-loc 8)))
+             ; we have a picked-reg, put it and continue
+             (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers (sub1 numUsableRegs)
+                                      (list (cons `(,c-color . ,picked-reg) current-map)
+                                            (remv picked-reg current-usable-regs)
+                                            current-stack-loc))))))))
+              
 ;; find-homes-to-colors
 ;; given the graph and number of registers to use, produces 3 things
 ;; produces howmany stack slots needed AND list of colored nodes AND an association list of (<color> . <register/stackLocation>)
-;; exmpl output-> (values (listof <colored>node) '((0 . rdx) (1 . -8) (2 . -16)))
+;; exmpl output-> (values 0 (listof <colored>node) '((0 . rdx) (1 . -8) (2 . -16)))
 (define (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)
-  (let* ([color-map (graph-coloring inter-graph var-nodes move-graph '())]
-         [colors-names (map (lambda (nd) (cons (node-color nd) (node-name nd))) color-map)]
+  (let* ([colored-node-list (graph-coloring inter-graph var-nodes move-graph '())]
+         [colors-names (map (lambda (nd) (cons (node-color nd) (node-name nd))) colored-node-list)]
          
-         [numColors (if (empty? color-map) 0 (add1 (node-color (argmax node-color color-map))))]
+         [numColors (if (empty? colored-node-list) 0 (add1 (node-color (argmax node-color colored-node-list))))]
          [colors (range 0 numColors)]
          
          ;; just to have the kinds of registers in hand
-         [dont-touch-regs '(rsp rbp rax)]
+         ;[dont-touch-regs '(rsp rbp rax)]
          [caller-save-regs '(rax rdx rcx rsi rdi r8 r9 r10 r11)] ; rax
          [callee-save-regs '(rsp rbp rbx r12 r13 r14 r15)] ; rsp rbp
+         
          [all-registers (append caller-save-regs callee-save-regs)]
          ;; disregarding caller/callee saveness
-         [usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
+         ;[usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
          
-         [numUsableRegs (length usable-regs)]
+         [numUsableRegs (if (> num-of-registers (length all-registers))
+                            (length all-registers)
+                            num-of-registers)]
          )
-    
-    (if (<= numColors numUsableRegs)
-        ;; case-> the usable registers are enough to hold our variables
-        (values 0 color-map (pick-registers-for-these colors colors-names inter-graph caller-save-regs callee-save-regs))
-        ;; case-> we need some stack vars
-        (let-values ([(regColors stackColors) (split-at colors numUsableRegs)])
-          (values
-           (- numColors numUsableRegs)
-           color-map
-           (append (pick-registers-for-these regColors colors-names inter-graph caller-save-regs callee-save-regs)
-                   (map cons stackColors (build-list (- numColors numUsableRegs) (lambda (x) (* (add1 x) -8))))))))))
+    (let* ([mapResults (map-colors-to-locations colors colors-names inter-graph all-registers numUsableRegs
+                                                (list '() all-registers -8))]
+           [color-to-loc-mapping (car mapResults)]
+           [current-usable-reg-dummy (cadr mapResults)]
+           [howmany-stack-locs (caddr mapResults)]
+           )
+      (values 
+       color-to-loc-mapping
+       colored-node-list
+       howmany-stack-locs
+       ))))
 
 ;; varToLocStmnt
 (define (varToLocStmnt nodes-colors color-location)
@@ -280,7 +283,8 @@
 
 
 (define (assign-homes inter-graph var-nodes instructions move-graph num-of-registers)
-  (let-values ([(num-of-stack-slots color-map color-homes) (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)])
+  (let-values ([(color-homes color-map num-of-stack-slots)
+                (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)])
     (let ([vars-colors (map (lambda (node) (cons (node-name node) (node-color node))) color-map)])
       (values num-of-stack-slots
               (match-lambda
