@@ -185,8 +185,29 @@
                  )
             (graph-coloring inter-graph updatedVars move-graph (cons (node maxNodeName nodeColor maxNodeSatur) mapping)))]))
 
+(define (pick-a-reg adj-set usable-regs caller-save-regs)
+  (let ([picked-reg (list-ref usable-regs (random (length usable-regs)))])
+    (if (ormap (lambda (reg) (set-member? adj-set picked-reg)) caller-save-regs)
+        (pick-a-reg adj-set usable-regs caller-save-regs) ; pick again
+        picked-reg)))
+
 
 (define (pick-registers-for-these colors colors-names inter-graph caller-save-regs callee-save-regs)
+  (car ;; returning only the map
+   (foldr (lambda (color map+usableRegs)
+            (let* ([varname (cdr (assv color colors-names))]
+                   [adj (adjacent inter-graph varname)]
+                   [usable-regs (cdr map+usableRegs)]
+                   [picked-reg (pick-a-reg adj usable-regs caller-save-regs)]
+                   
+                   [current-map (car map+usableRegs)])
+              (cons (cons `(,color . ,picked-reg) current-map)
+                    (remv picked-reg usable-regs))))
+          `(() . ,(append caller-save-regs callee-save-regs))
+          colors)))
+  
+
+(define (pick-registers-for-these-2 colors colors-names inter-graph caller-save-regs callee-save-regs)
   (let ([caller-saves (list->mutable-set caller-save-regs)]
         [callee-saves (list->mutable-set callee-save-regs)]
         [pick-callee true]) ;; picking from different set each time (unless there's an interference, see below)
@@ -194,6 +215,7 @@
            (let* ([varname (cdr (assv color colors-names))]
                   [adj (adjacent inter-graph varname)]
                   [interference? (ormap (lambda (reg) (set-member? adj reg)) caller-save-regs)]
+                  
                   [pick-from-callee (if interference?
                                         true
                                         (begin (set! pick-callee (not pick-callee)) (not pick-callee)))] ; I know, I know...
