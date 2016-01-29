@@ -239,8 +239,8 @@
          
          ;; just to have the kinds of registers in hand
          [dont-touch-regs '(rsp rbp rax)]
-         [caller-save-regs '(rdx rcx rsi rdi r8 r9 r10 r11)] ; rax
-         [callee-save-regs '(rbx r12 r13 r14 r15)] ; rsp rbp
+         [caller-save-regs '(rax rdx rcx rsi rdi r8 r9 r10 r11)] ; rax
+         [callee-save-regs '(rsp rbp rbx r12 r13 r14 r15)] ; rsp rbp
          [all-registers (append caller-save-regs callee-save-regs)]
          ;; disregarding caller/callee saveness
          [usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
