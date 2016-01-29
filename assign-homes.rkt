@@ -3,6 +3,10 @@
 (require "utilities.rkt")
 
 (provide
+ build-interference
+ uncover-live
+ allocate-registers
+ (rename-out [assign-homes assign-homes-new])
  register-allocation
  (rename-out [assign-homes-old assign-homes]))
 
@@ -181,34 +185,56 @@
                  )
             (graph-coloring inter-graph updatedVars move-graph (cons (node maxNodeName nodeColor maxNodeSatur) mapping)))]))
 
+
+(define (pick-registers-for-these colors colors-names caller-save-regs callee-save-regs)
+  (let ([caller-saves (list->mutable-set caller-save-regs)]
+        [callee-saves (list->mutable-set callee-save-regs)]
+        [pick-callee true]) ;; picking from different set each time (unless there's an interference, see below)
+    (map (lambda (color)
+           (let* ([varname (car (assv color colors-names))]
+                  [adj (adjacent inter-graph varname)]
+                  [interference? (set-member? adj 'rax)]
+                  [pick-from-callee (if interference?
+                                        true
+                                        (begin (set! pick-callee (not pick-callee)) (not pick-callee)))] ; I know, I know...
+                  ) ;; I don't think there can be any other caller-save reg.)
+             (cons color
+                   (if pick-from-callee
+                       (let ([chosen (set-first callee-saves)]) (begin (set-remove! chosen callee-saves) chosen))
+                       (let ([chosen (set-first caller-saves)]) (begin (set-remove! chosen caller-saves) chosen))))))
+         colors)))
+
 ;; find-homes-to-colors
 ;; given the graph and number of registers to use, produces 3 things
 ;; produces howmany stack slots needed AND list of colored nodes AND an association list of (<color> . <register/stackLocation>)
 ;; exmpl output-> (values (listof <colored>node) '((0 . rdx) (1 . -8) (2 . -16)))
 (define (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)
   (let* ([color-map (graph-coloring inter-graph var-nodes move-graph '())]
+         [colors-names (map (lambda (nd) (cons (node-color nd) (node-name nd))) color-map)]
+         
          [numColors (if (empty? color-map) 0 (add1 (node-color (argmax node-color color-map))))]
          [colors (range 0 numColors)]
          
          ;; just to have the kinds of registers in hand
          [dont-touch-regs '(rsp rbp rax)]
-         [caller-save-regs '(rax rdx rcx rsi rdi r8 r9 r10 r11)]
-         [callee-save-regs '(rsp rbp rbx r12 r13 r14 r15)]
+         [caller-save-regs '(rdx rcx rsi rdi r8 r9 r10 r11)] ; rax
+         [callee-save-regs '(rbx r12 r13 r14 r15)] ; rsp rbp
          [all-registers (append caller-save-regs callee-save-regs)]
          ;; disregarding caller/callee saveness
-         [usable-regs (take (remq* (append caller-save-regs dont-touch-regs) all-registers) num-of-registers)]
+         [usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
          
-         [numUsableRegs (length usable-regs)])
+         [numUsableRegs (length usable-regs)]
+         )
     
     (if (<= numColors numUsableRegs)
         ;; case-> the usable registers are enough to hold our variables
-        (values 0 color-map (map cons colors (take usable-regs numColors)))
+        (values 0 color-map (pick-registers-for-these colors colors colors-names caller-save-regs callee-save-regs))
         ;; case-> we need some stack vars
         (let-values ([(regColors stackColors) (split-at colors numUsableRegs)])
           (values
            (- numColors numUsableRegs)
            color-map
-           (append (map cons regColors (take usable-regs numUsableRegs))
+           (append (pick-registers-for-these regColors colors-names caller-save-regs callee-save-regs)
                    (map cons stackColors (build-list (- numColors numUsableRegs) (lambda (x) (* (add1 x) -8))))))))))
 
 ;; varToLocStmnt
