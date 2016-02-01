@@ -53,6 +53,10 @@
     (define r1-tests
       (tests "Jeremy's tests 2: electric boogaloo" uniquify-passes interp-scheme "r1" r1-range))
 
+    (define r1a-range (irange 1 8))
+    (define r1a-tests
+      (tests "Jeremy's tests 3: stand up and testify" uniquify-passes interp-scheme "r1a" r1a-range))
+    
     (define uniquify-range (irange 1 5))
     (define uniquify-tests
       (tests "uniquify" uniquify-passes interp-scheme "uniquify" uniquify-range))
@@ -61,9 +65,14 @@
     (define flatten-tests
       (tests "flatten" flatten-passes interp-scheme "flatten" flatten-range))
 
+    (define torture-range (irange 1 2))
+    (define torture-tests
+      (tests "torture" uniquify-passes interp-scheme "torture" torture-range))
+
     (r0-tests)
     (r1-tests)
+    (r1a-tests)
     (uniquify-tests)
     (flatten-tests)
-    (display "all tests passed!") (newline)
-    ))
+    (torture-tests)
+    (display "all tests passed!") (newline)))
