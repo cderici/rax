@@ -49,14 +49,14 @@
     (define r0-tests
       (tests "Jeremy's tests" uniquify-passes interp-scheme "r0" r0-range))
 
-    (define r1-range (irange 1 19))
+    (define r1-range (irange 1 21))
     (define r1-tests
       (tests "Jeremy's tests 2: electric boogaloo" uniquify-passes interp-scheme "r1" r1-range))
 
     (define r1a-range (irange 1 8))
     (define r1a-tests
       (tests "Jeremy's tests 3: stand up and testify" uniquify-passes interp-scheme "r1a" r1a-range))
-    
+
     (define uniquify-range (irange 1 5))
     (define uniquify-tests
       (tests "uniquify" uniquify-passes interp-scheme "uniquify" uniquify-range))
