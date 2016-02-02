@@ -203,6 +203,3 @@
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
-
-(all-tests r1-passes)
-
