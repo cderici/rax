@@ -2,3 +2,20 @@ ASSIGNMENT 1:
 19/19 test cases interpreted successfully.
 19/19 test cases compiled and executed correctly.
 Great work!
+
+ASSIGNMENT 2:
+8/8 new test cases interpreted successfully.
+8/8 new test cases compiled and executed correctly.
+All old test cases worked.
+Register allocation is good, although it appears that you are
+restricting yourself to a subset of the registers available? It seems
+that only r9-r15 are used. But these include both caller-save and
+callee-save registers and they are handled correctly, so full credit
+-- just make sure to fix it if you intended to use all registers.
+Move biasing is implemented.
+
+It would be convenient for us (the graders) if you didn't run your own
+tests from within compiler.rkt. We import that file externally and
+since it's getting executed within a different directory, I have to
+comment out your tests in order to run mine. This will not affect your
+grade, however.
