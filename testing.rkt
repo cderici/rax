@@ -65,7 +65,7 @@
     (define flatten-tests
       (tests "flatten" flatten-passes interp-scheme "flatten" flatten-range))
 
-    (define torture-range (irange 1 2))
+    (define torture-range (irange 1 3))
     (define torture-tests
       (tests "torture" uniquify-passes interp-scheme "torture" torture-range))
 

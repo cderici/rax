@@ -13,6 +13,7 @@
  (rename-out [assign-homes-old assign-homes]))
 
 (define dont-touch-reg-set (set `rsp `rbp `rax))
+(define touchable-reg-list (append (reverse (set->list caller-save)) (reverse (set->list callee-save))))
 
 (define (register-allocation num-of-registers)
   (lambda (x86*-prog)
@@ -254,16 +255,7 @@
          [numColors (if (empty? colored-node-list) 0 (add1 (node-color (argmax node-color colored-node-list))))]
          [colors (range 0 numColors)]
          
-         ;; just to have the kinds of registers in hand
-         [dont-touch-regs (set->list dont-touch-reg-set)]
-         [caller-save-regs (set->list caller-save)] ; rax
-         [callee-save-regs (set->list callee-save)] ; rsp rbp
-         
-         [all-registers (remq* dont-touch-regs
-                               (append caller-save-regs callee-save-regs))]
-         
-         ;; disregarding caller/callee saveness
-         ;[usable-regs (take (remq* dont-touch-regs all-registers) num-of-registers)]
+         [all-registers touchable-reg-list]
          
          [numUsableRegs (if (> num-of-registers (length all-registers))
                             (length all-registers)
@@ -339,7 +331,7 @@
 (define written-callee-save-regs
   (λ (instrs)
     (remove-duplicates
-     (filter (curry set-member? (set-subtract callee-save dont-touch-reg-set))
+     (filter (curry set-member? callee-save)
              (map written-reg
                   (filter written-reg instrs))))))
 
