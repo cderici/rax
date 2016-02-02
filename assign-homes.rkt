@@ -6,10 +6,13 @@
  build-interference
  uncover-live
  allocate-registers
+ written-callee-save-regs
+ dont-touch-reg-set
  (rename-out [assign-homes assign-homes-new])
  register-allocation
  (rename-out [assign-homes-old assign-homes]))
 
+(define dont-touch-reg-set (set `rsp `rbp `rax))
 
 (define (register-allocation num-of-registers)
   (lambda (x86*-prog)
@@ -58,6 +61,12 @@
   (match-lambda
     [`(,op ,_ ,arg2) (variable arg2)]
     [_               (set)]))
+
+; Instruction -> Symbol
+(define written-reg
+  (match-lambda
+    [`(,op ,_ (reg ,r)) r]
+    [_                  #f]))
 
 ; Arg -> Set Variable
 (define variable
@@ -205,9 +214,9 @@
       ((empty? colors) outVals)
       ((<= numUsableRegs 0)
        (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers numUsableRegs
-                               (list (cons `(,(car colors) . ,(* current-stack-loc -8)) current-map)
-                                     current-usable-regs
-                                     (add1 current-stack-loc))))
+                                (list (cons `(,(car colors) . ,(* current-stack-loc -8)) current-map)
+                                      current-usable-regs
+                                      (add1 current-stack-loc))))
       (else
        (let* ([c-color (car colors)]
               [var-names-has-c-color  (map cdr (filter (lambda (c-n)
@@ -218,7 +227,7 @@
                                          (set)
                                          adj-sets)]
               #;[varname (begin (display colors-names)(newline)
-                              (cdr (assv c-color colors-names)))]
+                                (cdr (assv c-color colors-names)))]
               #;[adj (adjacent inter-graph varname)]
               [picked-reg (pick-a-reg union-list-of-adjs current-usable-regs)]
               )
@@ -233,7 +242,7 @@
                                       (list (cons `(,c-color . ,picked-reg) current-map)
                                             (remv picked-reg current-usable-regs)
                                             current-stack-loc))))))))
-              
+
 ;; find-homes-to-colors
 ;; given the graph and number of registers to use, produces 3 things
 ;; produces howmany stack slots needed AND list of colored nodes AND an association list of (<color> . <register/stackLocation>)
@@ -246,9 +255,9 @@
          [colors (range 0 numColors)]
          
          ;; just to have the kinds of registers in hand
-         [dont-touch-regs '(rsp rbp rax)]
-         [caller-save-regs '(rax rdx rcx rsi rdi r8 r9 r10 r11)] ; rax
-         [callee-save-regs '(rsp rbp rbx r12 r13 r14 r15)] ; rsp rbp
+         [dont-touch-regs (set->list dont-touch-reg-set)]
+         [caller-save-regs (set->list caller-save)] ; rax
+         [callee-save-regs (set->list callee-save)] ; rsp rbp
          
          [all-registers (remq* dont-touch-regs
                                (append caller-save-regs callee-save-regs))]
@@ -318,10 +327,21 @@
       [`(program (,formals ... ,graph) ,instructions ...)
        (let* ([var-nodes (prep formals)]
               [move-graph (construct-move-graph! instructions (make-graph formals))])
-         (let-values ([(num-of-stack-slots mapping-function)
-                       (assign-homes graph var-nodes instructions move-graph numOfRegs)])
-           `(program ,(* 16 (ceiling (/ num-of-stack-slots 2)))
-                     ,@(map mapping-function instructions))))])))
+         (let*-values ([(num-of-stack-slots mapping-function)
+                        (assign-homes graph var-nodes instructions move-graph numOfRegs)]
+                       [(new-instrs) (map mapping-function instructions)]
+                       [(wcsr) (written-callee-save-regs new-instrs)]
+                       [(num-of-stack-slots^)
+                        (+ num-of-stack-slots (length wcsr))])
+           `(program ,(* 16 (ceiling (/ num-of-stack-slots^ 2)))
+                     ,@new-instrs)))])))
+
+(define written-callee-save-regs
+  (λ (instrs)
+    (remove-duplicates
+     (filter (curry set-member? (set-subtract callee-save dont-touch-reg-set))
+             (map written-reg
+                  (filter written-reg instrs))))))
 
 ;(define vars '(v w x  rax  y z))
 (define vars '(v w x y z))

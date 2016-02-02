@@ -62,7 +62,7 @@
              (else
               (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))
          ]
-
+        
         [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
                          (let ([vars (getVars assignments)])
                            `(program ,vars ,@assignments (return ,final-exp))))]
@@ -114,22 +114,49 @@
   (lambda (x86-e)
     (match x86-e
       [`(program ,i ,instrs ...)
-       (foldr string-append ""
-              `(,(format "\t.globl ~a\n" (label "main"))
-                ,(label "main:\n")
-                ;; Prelude
-                ,(display-instr "pushq" "%rbp")
-                ,(display-instr "movq" "%rsp, %rbp")
-                ,(if (null? i) "" (display-instr "subq" "$~a, %rsp" i))
-                "\n"
-                ,(foldr string-append "" (map print-x86-64-instr instrs))
-                "\n"
-                ;; Conclusion
-                ,(display-instr "movq" "%rax, %rdi")
-                ,(display-instr "callq" (label "print_int"))
-                ,(if (null? i) "" (display-instr "addq" "$~a, %rsp" i))
-                ,(display-instr "popq" "%rbp")
-                ,(display-instr "retq" "")))])))
+       (let ([wcsr (written-callee-save-regs instrs)])
+         (foldr string-append ""
+                `(,(format "\t.globl ~a\n" (label "main"))
+                  ,(label "main:\n")
+                  ;; Prelude
+                  ,(display-instr "pushq" "%rbp")
+                  ,(display-instr "movq" "%rsp, %rbp")
+                  ,(save-callee-regs instrs i wcsr)
+                  "\n"
+                  ,(foldr string-append "" (map print-x86-64-instr instrs))
+                  "\n"
+                  ;; Conclusion
+                  ,(display-instr "movq" "%rax, %rdi")
+                  ,(display-instr "callq" (label "print_int"))
+                  ,(restore-callee-regs instrs i wcsr)
+                  ,(display-instr "popq" "%rbp")
+                  ,(display-instr "retq" ""))))])))
+
+(define save-callee-regs
+  (λ (instrs i wcsr)
+    (string-append
+     (if (null? i) "" (display-instr "subq" "$~a, %rsp" i))
+     (car (foldr (λ (wcs state)
+                   (match state
+                     [`(,str . ,offset)
+                      (cons
+                       (string-append
+                        (display-instr "movq" "%~a, -~a(%rbp)" wcs offset) str)
+                       (- offset 8))]))
+                 `("" . ,i) wcsr)))))
+
+(define restore-callee-regs
+  (λ (instrs i wcsr)
+    (string-append
+     (car (foldr (λ (wcs state)
+                   (match state
+                     [`(,str . ,offset)
+                      (cons
+                       (string-append
+                        (display-instr "movq" "-~a(%rbp), %~a" offset wcs) str)
+                       (- offset 8))]))
+                 `("" . ,i) wcsr))
+     (if (null? i) "" (display-instr "addq" "$~a, %rsp" i)))))
 
 (define print-x86-64-instr
   (match-lambda
