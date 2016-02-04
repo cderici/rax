@@ -65,6 +65,10 @@
     (define flatten-tests
       (tests "flatten" typechecker flatten-passes interp-scheme "flatten" flatten-range))
 
+    (define tc-range (irange 1 10))
+    (define tc-tests
+      (tests "typecheck" typechecker uniquify-passes interp-scheme "tc" tc-range))
+
     (define torture-range (irange 1 3))
     (define torture-tests
       (tests "torture" typechecker uniquify-passes interp-scheme "torture" torture-range))
@@ -74,5 +78,6 @@
     (r1a-tests)
     (uniquify-tests)
     (flatten-tests)
-    (torture-tests)
+    ;(tc-tests)
+    ;(torture-tests)
     (display "all tests passed!") (newline)))
