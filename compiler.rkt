@@ -1,7 +1,7 @@
 #lang racket
 
 (require "utilities.rkt" "interp.rkt" "testing.rkt"
-         "assign-homes.rkt")
+         "assign-homes.rkt" "typecheck.rkt")
 
 (provide r1-passes
          uniquify
@@ -11,6 +11,7 @@
          register-allocation
          patch-instr
          print-x86-64
+         typechecker
          )
 
 
@@ -181,6 +182,7 @@
                   ,(display-instr "movq" "%rax, %rdi")
                   ,(display-instr "callq" (label "print_int"))
                   ,(restore-callee-regs instrs i wcsr)
+                  ,(display-instr "movq" "$0, %rax") ; Make sure the exit code is 0!
                   ,(display-instr "popq" "%rbp")
                   ,(display-instr "retq" ""))))])))
 

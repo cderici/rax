@@ -1,6 +1,6 @@
 #lang racket
 
-(require "utilities.rkt" "interp.rkt")
+(require "utilities.rkt" "interp.rkt" "typecheck.rkt")
 
 (provide all-tests passes->compiler)
 
@@ -28,10 +28,10 @@
     (range b (+ e 1))))
 
 (define tests
-  (lambda (caption passes interp name range)
+  (lambda (caption tc passes interp name range)
     (lambda ()
-      (interp-tests caption passes interp name range)
-      (compiler-tests caption passes name range)
+      (interp-tests caption tc passes interp name range)
+      (compiler-tests caption tc passes name range)
 
       )))
 
@@ -47,32 +47,37 @@
 
     (define r0-range (irange 1 4))
     (define r0-tests
-      (tests "Jeremy's tests" uniquify-passes interp-scheme "r0" r0-range))
+      (tests "Jeremy's tests" typechecker uniquify-passes interp-scheme "r0" r0-range))
 
     (define r1-range (irange 1 21))
     (define r1-tests
-      (tests "Jeremy's tests 2: electric boogaloo" uniquify-passes interp-scheme "r1" r1-range))
+      (tests "Jeremy's tests 2: electric boogaloo" typechecker uniquify-passes interp-scheme "r1" r1-range))
 
     (define r1a-range (irange 1 8))
     (define r1a-tests
-      (tests "Jeremy's tests 3: stand up and testify" uniquify-passes interp-scheme "r1a" r1a-range))
+      (tests "Jeremy's tests 3: stand up and testify" typechecker uniquify-passes interp-scheme "r1a" r1a-range))
 
     (define uniquify-range (irange 1 5))
     (define uniquify-tests
-      (tests "uniquify" uniquify-passes interp-scheme "uniquify" uniquify-range))
+      (tests "uniquify" typechecker uniquify-passes interp-scheme "uniquify" uniquify-range))
 
     (define flatten-range (irange 1 3))
     (define flatten-tests
-      (tests "flatten" flatten-passes interp-scheme "flatten" flatten-range))
+      (tests "flatten" typechecker flatten-passes interp-scheme "flatten" flatten-range))
+
+    (define tc-range (irange 1 10))
+    (define tc-tests
+      (tests "typecheck" typechecker uniquify-passes interp-scheme "tc" tc-range))
 
     (define torture-range (irange 1 3))
     (define torture-tests
-      (tests "torture" uniquify-passes interp-scheme "torture" torture-range))
+      (tests "torture" typechecker uniquify-passes interp-scheme "torture" torture-range))
 
     (r0-tests)
     (r1-tests)
     (r1a-tests)
     (uniquify-tests)
     (flatten-tests)
-    (torture-tests)
+    ;(tc-tests)
+    ;(torture-tests)
     (display "all tests passed!") (newline)))
