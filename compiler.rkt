@@ -35,13 +35,14 @@
   (foldr (lambda (assgn vars)
            (match assgn
              [`(assign ,var ,val) (cons var vars)]
-             [`(if (eq? #t ,exp) ,thns ,elss)
+             [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
               (let* ([thnVars (getVars thns)]
                      [elsVars (getVars elss)]
-                     [allVars (append thnVars elsVars vars)])
-                (if (symbol? exp)
-                    (cons exp allVars)
-                    allVars))]))
+                     [allVars (append thnVars elsVars vars)]
+                     [exp1-maybe (if (symbol? exp1) (cons exp1 allVars) allVars)]
+                     [exp2-maybe (if (symbol? exp2) (cons exp2 exp1-maybe) exp1-maybe)])
+                ;; we run remove-duplicates at the top level, so don't worry about the uniqueness
+                exp2-maybe)]))
          '() assignments))
 
 (define (change-var newVar oldVar assignments)
@@ -80,17 +81,61 @@
               (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))]
         ;; and
         [`(and ,exp1 ,exp2) ((flatten vars) `(if ,exp1 ,exp2 #f))]
-        ;; if
+        ;; if - optimizing
         [`(if ,cnd ,thn ,els)
-         (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
-                      [(flat-thn statements-thn) ((flatten vars) thn)]
-                      [(flat-els statements-els) ((flatten vars) els)])
-           (let ([newIfVar (gensym `if.)])
-             (values newIfVar (append statements-cnd
-                                      `((if (eq? #t ,flat-cnd)
-                                            ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
-                                            ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
-        
+           (match cnd
+             [(? boolean?)
+              (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
+                           [(flat-thn statements-thn) ((flatten vars) thn)]
+                           [(flat-els statements-els) ((flatten vars) els)])
+                (if cnd
+                    (values flat-thn statements-thn)
+                    (values flat-els statements-els)))]
+             ;; if 'not' flipping the branches
+             [`(not ,exp) ((flatten vars) `(if ,exp ,els ,thn))]
+             ;; getting rid of let
+             [`(let ([,var ,exp]) ,body)
+              (let-values ([(flat-exp statements-exp) ((flatten vars) exp)]
+                           [(flat-new-if statements-new-if) ((flatten vars) `(if ,body ,thn ,els))])
+                (let ([new-exp-statements (if (null? statements-exp)
+                                              `((assign ,var ,flat-exp))
+                                              (change-var var flat-exp statements-exp))])
+                  (values flat-new-if (append new-exp-statements
+                                              statements-new-if))))]
+             ;; cnd is 'and'
+             [`(and ,exp1 ,exp2)
+              ((flatten vars) `(if ,exp1 ,exp2 #f))]
+             ;; cnd is already an eq?
+             [`(eq? ,e1 ,e2)
+              (let-values ([(flat-e1 statements-e1) ((flatten vars) e1)]
+                           [(flat-e2 statements-e2) ((flatten vars) e2)]
+                           [(flat-thn statements-thn) ((flatten vars) thn)]
+                           [(flat-els statements-els) ((flatten vars) els)])
+                (let ([newIfVar (gensym `if.)])
+                  (values newIfVar (append statements-e1
+                                           statements-e2
+                                           `((if (eq? ,flat-e1 ,flat-e2)
+                                                 ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
+                                                 ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
+
+             ;; another 'if' in there
+             [`(if ,cnd-inner ,thn-inner ,els-inner)
+              ((flatten vars) `(if ,cnd-inner
+                                   (if ,thn-inner ,thn ,els)
+                                   (if ,els-inner ,thn ,els)))]
+                           
+             [else
+              (error 'optimizing-if (format "there is an unhandled conditional case : ~a" cnd))
+              #;(begin (display "A CASE YOU FORGOT TO HANDLE") (newline) (display cnd) (newline)
+                     (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
+                                  [(flat-thn statements-thn) ((flatten vars) thn)]
+                                  [(flat-els statements-els) ((flatten vars) els)])
+                       (let ([newIfVar (gensym `if.)])
+                         (values newIfVar (append statements-cnd
+                                                  `((if (eq? #t ,flat-cnd)
+                                                        ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
+                                                        ,(append statements-els `((assign ,newIfVar ,flat-els))))))))))])]
+         
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
