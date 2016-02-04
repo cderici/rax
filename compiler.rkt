@@ -98,30 +98,56 @@
                                     (list `(assign ,newVar (,op ,@flats)))))))]))))
 
 
-;; C0 -> x86*
+;; C1 -> x86_1*
 ;; doesn't change the (program (vars) assignments ... return) structure
 (define select-instructions
-  (lambda (c0-e)
-    (match c0-e
-      [`(assign ,var ,rhs)
-       (match rhs
-         [(? symbol?) `((movq (var ,rhs) (var ,var)))]
-         [(? integer?) `((movq (int ,rhs) (var ,var)))]
-         [`(read) `((callq read_int) (movq (reg rax) (var ,var)))]
-         [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) ,arg) (var ,var)) (negq (var ,var)))]
-         [`(+ ,arg1 ,arg2)
-          (cond
-            [(equal? arg1 var) `((addq ,arg1 ,var))]
-            [(equal? arg2 var) `((addq ,arg2 ,var))]
-            [else
-             `((movq (,(if (integer? arg1) 'int 'var) ,arg1) (var ,var))
-               (addq (,(if (integer? arg2) 'int 'var) ,arg2) (var ,var)))
-             ])]
-         [else (error 'select-instructions "don't know how to handle this rhs~a")])
-       ]
-      [`(return ,e) `((movq (,(if (integer? e) 'int 'var) ,e) (reg rax)))]
-      [`(program (,vars ...) ,assignments ... (return ,final-e))
-       `(program ,vars ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))])))
+  (match-lambda
+    ;; assign
+    [`(assign ,var ,rhs)
+     (match rhs
+       [(? symbol?) `((movq (var ,rhs) (var ,var)))]
+       [(? integer?) `((movq (int ,rhs) (var ,var)))]
+       [(? boolean?) `((movq (int ,(if rhs 1 0))) (var ,var))]
+       [`(read) `((callq read_int) (movq (reg rax) (var ,var)))]
+       [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) ,arg) (var ,var)) (negq (var ,var)))]
+       [`(+ ,arg1 ,arg2)
+        (cond
+          [(equal? arg1 var) `((addq ,arg1 ,var))]
+          [(equal? arg2 var) `((addq ,arg2 ,var))]
+          [else
+           `((movq (,(if (integer? arg1) 'int 'var) ,arg1) (var ,var))
+             (addq (,(if (integer? arg2) 'int 'var) ,arg2) (var ,var)))
+           ])]
+       [`(not ,arg) ;; arg : var|bool (kudos to the typechecker)
+        (cond
+          [(boolean? arg) `((movq (int ,(if arg 1 0)) (var ,var)) (xorq (int 1) (var ,var)))]
+          [(symbol? arg) `((movq (var ,arg) (var ,var)) (xorq (int 1) (var ,var)))]
+          [else (error 'select-instructions "we shouldn't have as arg to 'not' any form other than boolean or var(symbol)")])]
+       [`(eq? ,arg1 ,arg2)
+        ;; TODO : refactor
+        (let ([arg1-instr (cond [(boolean? arg1) `(int ,(if arg1 1 0))]
+                                [(integer? arg1) `(int ,arg1)]
+                                [(symbol? arg1) `(var ,arg1)])]
+              [arg2-instr (cond [(boolean? arg2) `(int ,(if arg2 1 0))]
+                                [(integer? arg2) `(int ,arg2)]
+                                [(symbol? arg2) `(var ,arg2)])])
+          `((cmpq ,arg1-instr ,arg2-instr)
+            (sete (byte-reg al))
+            (movzbq (byte-reg al) (var ,var))))]
+       [else (error 'select-instructions "don't know how to handle this rhs~a")])]
+    ;; if
+    [`(if (eq? #t ,singleton) ,thns ,elss)
+     (let ([sing-inst (cond [(boolean? singleton) `(int ,(if singleton 1 0))]
+                                [(integer? singleton) `(int ,singleton)]
+                                [(symbol? singleton) `(var ,singleton)])])
+       `((if (eq? (int 1) ,sing-inst)
+             ,@(map select-instructions thns)
+             ,@(map select-instructions elss))))]
+    ;; return
+    [`(return ,e) `((movq (,(if (integer? e) 'int 'var) ,e) (reg rax)))]
+    ;; program
+    [`(program (,vars ...) ,assignments ... (return ,final-e))
+     `(program ,vars ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))]))
 
 ; x86* -> x86
 (define patch-instr
