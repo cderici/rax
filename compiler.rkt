@@ -169,15 +169,18 @@
 
 ; x86* -> x86
 (define patch-instr
-  (lambda (x86-e)
-    (match x86-e
-      [`(movq (reg ,r) (reg ,r)) `()]
-      [`(,op (stack ,n1) (stack ,n2))
-       `((movq (stack ,n1) (reg rax))
-         (,op  (reg rax)   (stack ,n2)))]
-      [`(program ,i ,instrs ...)
-       `(program ,i ,@(append-map patch-instr instrs))]
-      [_ `(,x86-e)])))
+  (match-lambda
+    [`(cmpq ,arg1 (int ,i)) ; Second argument to cmpq can't be immediate value
+     `((movq (int ,i) (reg rax))
+       (cmpq ,arg1 (reg rax)))]
+    [`(movq (reg ,r) (reg ,r)) ; Kill redundant moves
+     `()]
+    [`(,op (stack ,n1) (stack ,n2)) ; Both arguments can't be memory locations
+     `((movq (stack ,n1) (reg rax))
+       (,op  (reg rax)   (stack ,n2)))]
+    [`(program ,i ,instrs ...)
+     `(program ,i ,@(append-map patch-instr instrs))]
+    [x86-e `(,x86-e)]))
 
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
