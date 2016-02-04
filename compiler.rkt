@@ -184,8 +184,8 @@
     ;; if
     [`(if (eq? #t ,singleton) ,thns ,elss)
      (let ([sing-inst (cond [(boolean? singleton) `(int ,(if singleton 1 0))]
-                                [(integer? singleton) `(int ,singleton)]
-                                [(symbol? singleton) `(var ,singleton)])])
+                            [(integer? singleton) `(int ,singleton)]
+                            [(symbol? singleton) `(var ,singleton)])])
        `((if (eq? (int 1) ,sing-inst)
              ,@(map select-instructions thns)
              ,@(map select-instructions elss))))]
@@ -195,17 +195,37 @@
     [`(program (,vars ...) ,assignments ... (return ,final-e))
      `(program ,vars ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))]))
 
+; x86_1* (with if-statments) -> x86_1* (without if-statements)
+(define lower-conditionals
+  (match-lambda
+    [`(if (eq? ,e1 ,e2) ,thns ,elss)
+     (let ([thenlabel (genlabel 'then)]
+           [endlabel  (genlabel 'end)])
+       `((cmpq ,e1 ,e2)
+         (je ,thenlabel)
+         ,@(append-map lower-conditionals elss)
+         (jmp ,endlabel)
+         (label ,thenlabel)
+         ,@(append-map lower-conditionals thns)
+         (label ,endlabel)))]
+    [`(program ,i ,instrs ...)
+     `(program ,i ,@(append-map lower-conditionals instrs))]
+    [x `(,x)]))
+
 ; x86* -> x86
 (define patch-instr
-  (lambda (x86-e)
-    (match x86-e
-      [`(movq (reg ,r) (reg ,r)) `()]
-      [`(,op (stack ,n1) (stack ,n2))
-       `((movq (stack ,n1) (reg rax))
-         (,op  (reg rax)   (stack ,n2)))]
-      [`(program ,i ,instrs ...)
-       `(program ,i ,@(foldr append `() (map patch-instr instrs)))]
-      [_ `(,x86-e)])))
+  (match-lambda
+    [`(cmpq ,arg1 (int ,i)) ; Second argument to cmpq can't be immediate value
+     `((movq (int ,i) (reg rax))
+       (cmpq ,arg1 (reg rax)))]
+    [`(movq (reg ,r) (reg ,r)) ; Kill redundant moves
+     `()]
+    [`(,op (stack ,n1) (stack ,n2)) ; Both arguments can't be memory locations
+     `((movq (stack ,n1) (reg rax))
+       (,op  (reg rax)   (stack ,n2)))]
+    [`(program ,i ,instrs ...)
+     `(program ,i ,@(append-map patch-instr instrs))]
+    [x86-e `(,x86-e)]))
 
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
@@ -292,6 +312,9 @@
     (match (system-type 'os)
       [`macosx (string-append "_" l)]
       [_ l])))
+
+(define genlabel
+  (compose1 gensym label))
 
 ; [Pass]
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
