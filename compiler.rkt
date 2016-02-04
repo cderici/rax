@@ -14,16 +14,17 @@
          )
 
 
-;; R1 -> R1
+;; R2 -> R2
 (define uniquify
   (lambda (alist)
     (lambda (e)
       (match e
+        [(? integer?) e]
+        [(? boolean?) e]
         [(? symbol?) (let ([idNewID (assv e alist)])
                        (if (not idNewID)
                            (error 'uniquify "something's wrong")
                            (cdr idNewID)))]
-        [(? integer?) e]
         [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
         [`(program ,e) `(program ,((uniquify alist) e))]
@@ -31,7 +32,16 @@
 
 (define (getVars assignments)
   (foldr (lambda (assgn vars)
-           (cons (cadr assgn) vars)) '() assignments))
+           (match assgn
+             [`(assign ,var ,val) (cons var vars)]
+             [`(if (eq? #t ,exp) ,thns ,elss)
+              (let* ([thnVars (getVars thns)]
+                     [elsVars (getVars elss)]
+                     [allVars (append thnVars elsVars vars)])
+                (if (symbol? exp)
+                    (cons exp allVars)
+                    allVars))]))
+         '() assignments))
 
 (define (change-var newVar oldVar assignments)
   (cond
@@ -40,13 +50,19 @@
      (cons `(assign ,newVar ,(caddr (car assignments))) (cdr assignments)))
     (else (cons (car assignments) (change-var newVar oldVar (cdr assignments))))))
 
-;; R1 -> C0
+;; R2 -> C1
 (define flatten
   (lambda (vars)
     (lambda (e)
       (match e
+        [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
+                         (let ([vars (remove-duplicates (getVars assignments))])
+                           `(program ,vars ,@assignments (return ,final-exp))))]
+        ;; values
+        [(? boolean?) (values e '())]
         [(? symbol?) (values e '())]
         [(? integer?) (values e '())]
+        ;; let
         [`(let ([,x ,e]) ,body)
          (let-values ([(flat-e assgn-e) ((flatten vars) e)]
                       [(flat-body assgn-body) ((flatten (cons x vars)) body)])
@@ -60,16 +76,26 @@
                   (values flat-body (cons `(assign ,x ,flat-e) assgn-body))))
              ;; flat-e is an integer
              (else
-              (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))
-         ]
+              (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))]
+        ;; and
+        [`(and ,exp1 ,exp2) ((flatten vars) `(if ,exp1 ,exp2 #f))]
+        ;; if
+        [`(if ,cnd ,thn ,els)
+         (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
+                      [(flat-thn statements-thn) ((flatten vars) thn)]
+                      [(flat-els statements-els) ((flatten vars) els)])
+           (let ([newIfVar (gensym `if.)])
+             (values newIfVar (append statements-cnd
+                                      `((if (eq? #t ,flat-cnd)
+                                            ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
+                                            ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
         
-        [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
-                         (let ([vars (getVars assignments)])
-                           `(program ,vars ,@assignments (return ,final-exp))))]
+        ;; +, -, (read), not, eq?
         [`(,op ,es ...)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
-           (let ((newVar (gensym `tmp)))
-             (values newVar (append (apply append assignments) (list `(assign ,newVar (,op ,@flats)))))))]))))
+           (let ((newVar (gensym `tmp.)))
+             (values newVar (append (apply append assignments)
+                                    (list `(assign ,newVar (,op ,@flats)))))))]))))
 
 
 ;; C0 -> x86*
