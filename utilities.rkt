@@ -1,8 +1,8 @@
 #lang racket
 (require racket/pretty)
 (provide debug map2 label-name lookup  make-dispatcher assert
-         read-fixnum read-program 
-	 compile compile-file check-passes interp-tests compiler-tests fix while 
+         read-fixnum read-program
+	 compile compile-file check-passes interp-tests compiler-tests fix while
 	 make-graph add-edge adjacent vertices print-dot
 	 general-registers registers-for-alloc caller-save callee-save
 	 arg-registers register->color registers align)
@@ -47,10 +47,10 @@
 ;; The lookup function takes a key and an association list
 ;; and returns the corresponding value. It triggers an
 ;; error if the key is not present in the association list.
-;;   
+;;
 ;; The association list may be constructed of either
 ;; immutable or mutable pairs.
-;; 
+;;
 (define lookup
   (lambda (x ls)
     (cond [(null? ls)
@@ -59,7 +59,7 @@
 	   (cdr (car ls))]
 	  [(and (mpair? (car ls)) (eq? x (mcar (car ls))))
 	   (mcdr (car ls))]
-	  [else 
+	  [else
 	   (lookup x (cdr ls))])))
 
 (define (read-fixnum)
@@ -111,7 +111,7 @@
 ;;
 ;; The typechecker is a function of exactly one argument that EITHER
 ;; raises an error using the (error) function when it encounters a
-;; type error, or returns #f when it encounters a type error. 
+;; type error, or returns #f when it encounters a type error.
 
 (define (check-passes name typechecker passes initial-interp)
   (lambda (test-name)
@@ -123,12 +123,12 @@
     (debug "program:" sexp)
     (define type-error-expected (file-exists? (format "tests/~a.tyerr" test-name)))
     (define typechecks (test-typecheck typechecker sexp))
-    
+
     (cond
      [(and type-error-expected typechecks)
       (error (format "expected type error in compiler '~a', but no error raised by typechecker" name))]
      [type-error-expected 'expected-type-error]
-     [typechecks 
+     [typechecks
       (let loop ([passes passes] [p sexp]
                  [result (if (file-exists? input-file-name)
                              (with-input-from-file input-file-name
@@ -147,7 +147,7 @@
                                 ;; as this test bing current-input-port to that
                                 ;; file's input port so that the interpreters
                                 ;; can use it as test input.
-                                (if (file-exists? input-file-name) 
+                                (if (file-exists? input-file-name)
                                     (with-input-from-file input-file-name
                                       (lambda () (interp new-p)))
                                     (interp new-p))])
@@ -210,7 +210,7 @@
 ;; passes (ditto) a test family name (a string), and a list of test
 ;; numbers, and runs the compiler passes and the interpreters to check
 ;; whether the passes correct.
-;; 
+;;
 ;; This function assumes that the subdirectory "tests" has a bunch of
 ;; Scheme programs whose names all start with the family name,
 ;; followed by an underscore and then the test number, ending in
@@ -222,7 +222,7 @@
 
 (define (interp-tests name typechecker passes initial-interp test-family test-nums)
   (define checker (check-passes name typechecker passes initial-interp))
-  (for ([test-name (map (lambda (n) (format "~a_~a" test-family n)) 
+  (for ([test-name (map (lambda (n) (format "~a_~a" test-family n))
 			test-nums)])
        (checker test-name)
        ))
@@ -243,13 +243,13 @@
 (define (compiler-tests name typechecker passes test-family test-nums)
   (define compiler (compile-file typechecker passes))
   (debug "compiler-tests starting" '())
-  (for ([test-name (map (lambda (n) (format "~a_~a" test-family n)) 
+  (for ([test-name (map (lambda (n) (format "~a_~a" test-family n))
 			test-nums)])
        (debug "compiler-tests, testing:" test-name)
        (define type-error-expected (file-exists? (format "tests/~a.tyerr" test-name)))
        (define typechecks (compiler (format "tests/~a.rkt" test-name)))
        (if (and (not typechecks) (not type-error-expected))
-           (error (format "test ~a failed, unexpected type error" test-name)) 
+           (error (format "test ~a failed, unexpected type error" test-name))
            '())
        (if typechecks
            (if (system (format "gcc -g -std=c99 runtime.o tests/~a.s" test-name))
@@ -276,11 +276,11 @@
 		    (let ([result (string->number (read-line (car progout)))])
 		      (if (eq? result output)
 			  (begin (display test-name)(display " ")(flush-output))
-			  (error (format "test ~a failed, output: ~a" 
+			  (error (format "test ~a failed, output: ~a"
 					 test-name result))))]
 		   [else
 		    (error
-		     (format "test ~a error in x86 execution, exit code: ~a" 
+		     (format "test ~a error in x86 execution, exit code: ~a"
 			     test-name (control-fun 'exit-code)))])
             (close-input-port in1)
             (close-input-port in2)
@@ -296,10 +296,10 @@
 ;; (error) function when it encounters a type error, or that it
 ;; returns #f when it encounters a type error. This function then
 ;; returns whether a type error was encountered.
-(define test-typecheck 
+(define test-typecheck
   (lambda (tcer exp)
     (if (eq? tcer #f) #t
-        (let ([res 
+        (let ([res
                (with-handlers ([exn:fail?
                                 (lambda (e) #f)])
                  (tcer exp))])
@@ -327,10 +327,10 @@
 
 ;; there are 13 general registers:
 (define general-registers (vector 'rbx 'rcx 'rdx 'rsi 'rdi
-    				  'r8 'r9 'r10 'r11 'r12 
-				  'r13 'r14 'r15))
+                                  'r8 'r9 'r10 'r11 'r12
+                                  'r13 'r14 'r15))
 
-;; registers-for-alloc should always inlcude the arg-registers. -Jeremy 
+;; registers-for-alloc should always inlcude the arg-registers. -Jeremy
 (define registers-for-alloc general-registers)
 
 
@@ -373,15 +373,15 @@
       (call-with-output-file file-name #:exists 'replace
 	(lambda (out-file)
 	  (write-string "strict graph {" out-file) (newline out-file)
-	  
+
 	  (for ([v (vertices graph)])
 	       (write-string (format "~a;\n" v) out-file))
-	  
+
 	  (for ([v (vertices graph)])
 	       (for ([u (adjacent graph v)])
 		    (write-string (format "~a -- ~a;\n" u v) out-file)))
-	  
+
 	  (write-string "}" out-file)
 	  (newline out-file)))
       '()))
-      
+
