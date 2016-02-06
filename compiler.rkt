@@ -104,7 +104,7 @@
                                               statements-new-if))))]
              ;; cnd is 'and'
              [`(and ,exp1 ,exp2)
-              ((flatten vars) `(if ,exp1 ,exp2 #f))]
+              ((flatten vars) `(if (if ,exp1 ,exp2 #f) ,thn ,els))]
              ;; cnd is already an eq?
              [`(eq? ,e1 ,e2)
               (let-values ([(flat-e1 statements-e1) ((flatten vars) e1)]
@@ -329,4 +329,4 @@
                     ("print x86" ,print-x86-64 #f)))
 
 
-(all-tests r1-passes)
+;(all-tests r1-passes)
