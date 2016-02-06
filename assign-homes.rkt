@@ -19,6 +19,55 @@
   (lambda (x86*-prog)
     ((allocate-registers num-of-registers) (build-interference (uncover-live x86*-prog)))))
 
+
+
+(define uncover-live
+  (match-lambda
+    [`(program (,vars ...) ,instrs ...)
+     (let-values
+         ([(live-afters new-instrs last-before-ignore)
+           ;; new-instrs are in correct order (by tail recursion)
+           (compute-liveness-sets (reverse instrs) (set) '() '())])
+       `(program (,@vars ,live-afters) ,@new-instrs))]))
+
+;; instrs are given reversed
+(define (compute-liveness-sets instrs live-before-k+1 live-afters new-instrs)
+  (cond
+    ((empty? instrs) (values live-afters new-instrs live-before-k+1))
+    (else
+     (let* (;; the live-after-k (current live after) is
+            ;; the live-before-k+1 (previous live before)
+            [live-after-k live-before-k+1])
+       (let-values ([(live-before-k new-instr)
+                     (compute-live-before-k (car instrs) live-after-k)])
+         (compute-liveness-sets (cdr instrs)
+                                live-before-k
+                                (cons live-after-k live-afters)
+                                (cons new-instr new-instrs)))))))
+
+;; compute the current live-before, given the current live-after (= live-before-k+1)
+(define (compute-live-before-k instr-k live-after-k)
+  (match instr-k
+    [`(if (eq? ,e1 ,e2) ,thns ,elss)
+     (let-values
+         ([(live-afters-thns new-thns live-before-thns)
+           (compute-liveness-sets (reverse thns) live-after-k '() '())]
+          [(live-afters-elss new-elss live-before-elss)
+           (compute-liveness-sets (reverse elss) live-after-k '() '())])
+       ;; L_before(k) = L_thns_before U L_elss_before U Vars(e1) U Vars (e2)
+       (values (set-union live-before-thns live-before-elss
+                          (variable e1) (variable e2))
+               `(if (eq? ,e1 ,e2)
+                    ,new-thns ,live-afters-thns ,new-elss ,live-afters-elss)))]
+    [else
+     ; L_before(k) = (L_after(k) - W(k)) U R(k)
+     (values (set-union (set-subtract live-after-k (written-variables instr-k))
+                        (read-variables instr-k))
+             instr-k)]))
+
+
+
+#|
 ; x86* -> x86*
 (define uncover-live
   (match-lambda
@@ -47,6 +96,7 @@
                           (read-variables instr-k+1))]
               [live-after-k live-before-k+1])
          (cons live-after-k live-after-set))])))
+|#
 
 ; Instruction -> Set Variable
 (define read-variables
@@ -94,7 +144,7 @@
 (define add-edge-interference
   (lambda (instr live-after-set graph)
     (match instr
-      [`(movq ,s ,d)
+      [(or `(movq ,s ,d) `(movzbq ,s ,d) `(xorq ,s ,d))
        (let [(s-pl (arg-payload s))
              (d-pl (arg-payload d))]
          (sequence-fold
@@ -117,6 +167,14 @@
                   gr)))
           graph
           live-after-set))]
+      [`(cmpq ,arg1 ,arg2) graph]
+      ;; since we're not writing anything
+      [`(sete (byte-reg al)) graph]
+      [`(if (eq? ,e1 ,e2) ,thns ,thn-lives ,elss ,els-lives)
+       (foldl (curry add-edge-interference)
+              (foldl (curry add-edge-interference)
+                     graph elss els-lives)
+              thns thn-lives)]
       [`(callq ,label)
        (sequence-fold
         (λ (gr v)
@@ -293,12 +351,21 @@
       )))
 
 
-(define (assign-homes inter-graph var-nodes instructions move-graph num-of-registers)
+(define (assign-homes inter-graph var-nodes move-graph num-of-registers)
   (let-values ([(color-homes color-map num-of-stack-slots)
                 (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)])
     (let ([vars-colors (map (lambda (node) (cons (node-name node) (node-color node))) color-map)])
       (values num-of-stack-slots
               (match-lambda
+                [`(if (eq? ,arg1 ,arg2) ,thns ,thn-lives ,elss ,els-lives)
+                 (let*-values ([(num-stack-dummy mapping-func)
+                                (assign-homes inter-graph var-nodes move-graph num-of-registers)]
+                               [(new-thns) (map mapping-func thns)]
+                               [(new-elss) (map mapping-func elss)])
+                   `(if (eq? ,((varToLocStmnt vars-colors color-homes) arg1)
+                             ,((varToLocStmnt vars-colors color-homes) arg2))
+                        ,@new-thns
+                        ,@new-elss))]
                 [`(,bin-instr ,arg1 ,arg2) `(,bin-instr ,((varToLocStmnt vars-colors color-homes) arg1)
                                                         ,((varToLocStmnt vars-colors color-homes) arg2))]
                 [`(,unary-instr ,arg) `(,unary-instr ,((varToLocStmnt vars-colors color-homes) arg))]
@@ -308,9 +375,10 @@
   (cond
     ((empty? instructions) graph)
     (else (match (car instructions)
-            [`(movq (var ,v1) (var ,v2)) (begin
-                                           (add-edge graph v1 v2)
-                                           (construct-move-graph! (cdr instructions) graph))]
+            [`(movq (var ,v1) (var ,v2))
+             (begin
+               (add-edge graph v1 v2)
+               (construct-move-graph! (cdr instructions) graph))]
             [else (construct-move-graph! (cdr instructions) graph)]))))
 
 (define allocate-registers
@@ -320,7 +388,7 @@
        (let* ([var-nodes (prep formals)]
               [move-graph (construct-move-graph! instructions (make-graph formals))])
          (let*-values ([(num-of-stack-slots mapping-function)
-                        (assign-homes graph var-nodes instructions move-graph numOfRegs)]
+                        (assign-homes graph var-nodes move-graph numOfRegs)]
                        [(new-instrs) (map mapping-function instructions)]
                        [(wcsr) (written-callee-save-regs new-instrs)]
                        [(num-of-stack-slots^)

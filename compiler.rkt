@@ -153,7 +153,7 @@
      (match rhs
        [(? symbol?) `((movq (var ,rhs) (var ,var)))]
        [(? integer?) `((movq (int ,rhs) (var ,var)))]
-       [(? boolean?) `((movq (int ,(if rhs 1 0))) (var ,var))]
+       [(? boolean?) `((movq (int ,(if rhs 1 0)) (var ,var)))]
        [`(read) `((callq read_int) (movq (reg rax) (var ,var)))]
        [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) ,arg) (var ,var)) (negq (var ,var)))]
        [`(+ ,arg1 ,arg2)
@@ -182,13 +182,16 @@
             (movzbq (byte-reg al) (var ,var))))]
        [else (error 'select-instructions "don't know how to handle this rhs~a")])]
     ;; if
-    [`(if (eq? #t ,singleton) ,thns ,elss)
-     (let ([sing-inst (cond [(boolean? singleton) `(int ,(if singleton 1 0))]
-                            [(integer? singleton) `(int ,singleton)]
-                            [(symbol? singleton) `(var ,singleton)])])
-       `((if (eq? (int 1) ,sing-inst)
-             ,@(map select-instructions thns)
-             ,@(map select-instructions elss))))]
+    [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
+     (let ([exp1-inst (cond [(boolean? exp1) `(int ,(if exp1 1 0))]
+                            [(integer? exp1) `(int ,exp1)]
+                            [(symbol? exp1) `(var ,exp1)])]
+           [exp2-inst (cond [(boolean? exp2) `(int ,(if exp2 1 0))]
+                            [(integer? exp2) `(int ,exp2)]
+                            [(symbol? exp2) `(var ,exp2)])])
+       `((if (eq? ,exp1-inst ,exp2-inst)
+             ,(foldr append null (map select-instructions thns))
+             ,(foldr append null (map select-instructions elss)))))]
     ;; return
     [`(return ,e) `((movq (,(if (integer? e) 'int 'var) ,e) (reg rax)))]
     ;; program
@@ -325,3 +328,5 @@
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
+
+(all-tests r1-passes)
