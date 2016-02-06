@@ -4,6 +4,7 @@
          "assign-homes.rkt" "typecheck.rkt")
 
 (provide r1-passes
+         r2-passes
          uniquify
          flatten
          select-instructions
@@ -28,7 +29,7 @@
                            (cdr idNewID)))]
         [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
-        [`(program ,e) `(program ,((uniquify alist) e))]
+        [`(program ,e) `(program (type ,(typechecker e)) ,((uniquify alist) e))]
         [`(,op ,es ...) `(,op ,@(map (uniquify alist) es))]))))
 
 (define (getVars assignments)
@@ -57,9 +58,10 @@
   (lambda (vars)
     (lambda (e)
       (match e
-        [`(program ,e) (let-values ([(final-exp assignments) ((flatten vars) e)])
-                         (let ([vars (remove-duplicates (getVars assignments))])
-                           `(program ,vars ,@assignments (return ,final-exp))))]
+        [`(program (type ,t) ,e)
+         (let-values ([(final-exp assignments) ((flatten vars) e)])
+           (let ([vars (remove-duplicates (getVars assignments))])
+             `(program ,vars (type ,t) ,@assignments (return ,final-exp))))]
         ;; values
         [(? boolean?) (values e '())]
         [(? symbol?) (values e '())]
@@ -83,50 +85,50 @@
         [`(and ,exp1 ,exp2) ((flatten vars) `(if ,exp1 ,exp2 #f))]
         ;; if - optimizing
         [`(if ,cnd ,thn ,els)
-           (match cnd
-             [(? boolean?)
-              (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
-                           [(flat-thn statements-thn) ((flatten vars) thn)]
-                           [(flat-els statements-els) ((flatten vars) els)])
-                (if cnd
-                    (values flat-thn statements-thn)
-                    (values flat-els statements-els)))]
-             ;; if 'not' flipping the branches
-             [`(not ,exp) ((flatten vars) `(if ,exp ,els ,thn))]
-             ;; getting rid of let
-             [`(let ([,var ,exp]) ,body)
-              (let-values ([(flat-exp statements-exp) ((flatten vars) exp)]
-                           [(flat-new-if statements-new-if) ((flatten vars) `(if ,body ,thn ,els))])
-                (let ([new-exp-statements (if (null? statements-exp)
-                                              `((assign ,var ,flat-exp))
-                                              (change-var var flat-exp statements-exp))])
-                  (values flat-new-if (append new-exp-statements
-                                              statements-new-if))))]
-             ;; cnd is 'and'
-             [`(and ,exp1 ,exp2)
-              ((flatten vars) `(if ,exp1 ,exp2 #f))]
-             ;; cnd is already an eq?
-             [`(eq? ,e1 ,e2)
-              (let-values ([(flat-e1 statements-e1) ((flatten vars) e1)]
-                           [(flat-e2 statements-e2) ((flatten vars) e2)]
-                           [(flat-thn statements-thn) ((flatten vars) thn)]
-                           [(flat-els statements-els) ((flatten vars) els)])
-                (let ([newIfVar (gensym `if.)])
-                  (values newIfVar (append statements-e1
-                                           statements-e2
-                                           `((if (eq? ,flat-e1 ,flat-e2)
-                                                 ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
-                                                 ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
-
-             ;; another 'if' in there
-             [`(if ,cnd-inner ,thn-inner ,els-inner)
-              ((flatten vars) `(if ,cnd-inner
-                                   (if ,thn-inner ,thn ,els)
-                                   (if ,els-inner ,thn ,els)))]
-                           
-             [else
-              (error 'optimizing-if (format "there is an unhandled conditional case : ~a" cnd))
-              #;(begin (display "A CASE YOU FORGOT TO HANDLE") (newline) (display cnd) (newline)
+         (match cnd
+           [(? boolean?)
+            (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
+                         [(flat-thn statements-thn) ((flatten vars) thn)]
+                         [(flat-els statements-els) ((flatten vars) els)])
+              (if cnd
+                  (values flat-thn statements-thn)
+                  (values flat-els statements-els)))]
+           ;; if 'not' flipping the branches
+           [`(not ,exp) ((flatten vars) `(if ,exp ,els ,thn))]
+           ;; getting rid of let
+           [`(let ([,var ,exp]) ,body)
+            (let-values ([(flat-exp statements-exp) ((flatten vars) exp)]
+                         [(flat-new-if statements-new-if) ((flatten vars) `(if ,body ,thn ,els))])
+              (let ([new-exp-statements (if (null? statements-exp)
+                                            `((assign ,var ,flat-exp))
+                                            (change-var var flat-exp statements-exp))])
+                (values flat-new-if (append new-exp-statements
+                                            statements-new-if))))]
+           ;; cnd is 'and'
+           [`(and ,exp1 ,exp2)
+            ((flatten vars) `(if ,exp1 ,exp2 #f))]
+           ;; cnd is already an eq?
+           [`(eq? ,e1 ,e2)
+            (let-values ([(flat-e1 statements-e1) ((flatten vars) e1)]
+                         [(flat-e2 statements-e2) ((flatten vars) e2)]
+                         [(flat-thn statements-thn) ((flatten vars) thn)]
+                         [(flat-els statements-els) ((flatten vars) els)])
+              (let ([newIfVar (gensym `if.)])
+                (values newIfVar (append statements-e1
+                                         statements-e2
+                                         `((if (eq? ,flat-e1 ,flat-e2)
+                                               ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
+                                               ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
+           
+           ;; another 'if' in there
+           [`(if ,cnd-inner ,thn-inner ,els-inner)
+            ((flatten vars) `(if ,cnd-inner
+                                 (if ,thn-inner ,thn ,els)
+                                 (if ,els-inner ,thn ,els)))]
+           
+           [else
+            (error 'optimizing-if (format "there is an unhandled conditional case : ~a" cnd))
+            #;(begin (display "A CASE YOU FORGOT TO HANDLE") (newline) (display cnd) (newline)
                      (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
                                   [(flat-thn statements-thn) ((flatten vars) thn)]
                                   [(flat-els statements-els) ((flatten vars) els)])
@@ -135,7 +137,7 @@
                                                   `((if (eq? #t ,flat-cnd)
                                                         ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
                                                         ,(append statements-els `((assign ,newIfVar ,flat-els))))))))))])]
-         
+        
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
@@ -195,8 +197,8 @@
     ;; return
     [`(return ,e) `((movq (,(if (integer? e) 'int 'var) ,e) (reg rax)))]
     ;; program
-    [`(program (,vars ...) ,assignments ... (return ,final-e))
-     `(program ,vars ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))]))
+    [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
+     `(program ,vars (type ,t) ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))]))
 
 ; x86_1* (with if-statments) -> x86_1* (without if-statements)
 (define lower-conditionals
@@ -211,8 +213,8 @@
          (label ,thenlabel)
          ,@(append-map lower-conditionals thns)
          (label ,endlabel)))]
-    [`(program ,i ,instrs ...)
-     `(program ,i ,@(append-map lower-conditionals instrs))]
+    [`(program ,i (type ,t) ,instrs ...)
+     `(program ,i (type ,t) ,@(append-map lower-conditionals instrs))]
     [x `(,x)]))
 
 ; x86* -> x86
@@ -226,15 +228,15 @@
     [`(,op (stack ,n1) (stack ,n2)) ; Both arguments can't be memory locations
      `((movq (stack ,n1) (reg rax))
        (,op  (reg rax)   (stack ,n2)))]
-    [`(program ,i ,instrs ...)
-     `(program ,i ,@(append-map patch-instr instrs))]
+    [`(program ,i (type ,t) ,instrs ...)
+     `(program ,i (type ,t) ,@(append-map patch-instr instrs))]
     [x86-e `(,x86-e)]))
 
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
   (lambda (x86-e)
     (match x86-e
-      [`(program ,i ,instrs ...)
+      [`(program ,i (type ,t) ,instrs ...)
        (let ([wcsr (written-callee-save-regs instrs)])
          (foldr string-append ""
                 `(,(format "\t.globl ~a\n" (label "main"))
@@ -248,11 +250,17 @@
                   "\n"
                   ;; Conclusion
                   ,(display-instr "movq" "%rax, %rdi")
-                  ,(display-instr "callq" (label "print_int"))
+                  ,(display-instr "callq" (print-returned-value t))
                   ,(restore-callee-regs instrs i wcsr)
                   ,(display-instr "movq" "$0, %rax") ; Make sure the exit code is 0!
                   ,(display-instr "popq" "%rbp")
                   ,(display-instr "retq" ""))))])))
+
+(define print-returned-value
+  (match-lambda
+    [`Integer (label "print_int")]
+    [`Boolean (label "print_bool")]
+    [ty       (error (format "Don't know how to print value of type ~a" ty))]))
 
 (define save-callee-regs
   (λ (instrs i wcsr)
@@ -328,5 +336,10 @@
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
-
-(all-tests r1-passes)
+; [Pass]
+(define r2-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
+                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("select instructions" ,select-instructions ,interp-x86)
+                    ("register-allocation" ,(register-allocation 5) ,interp-x86)
+                    ("patch instructions" ,patch-instr ,interp-x86)
+                    ("print x86" ,print-x86-64 #f)))
