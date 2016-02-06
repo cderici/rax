@@ -364,8 +364,8 @@
                                [(new-elss) (map mapping-func elss)])
                    `(if (eq? ,((varToLocStmnt vars-colors color-homes) arg1)
                              ,((varToLocStmnt vars-colors color-homes) arg2))
-                        ,@new-thns
-                        ,@new-elss))]
+                        ,new-thns
+                        ,new-elss))]
                 [`(,bin-instr ,arg1 ,arg2) `(,bin-instr ,((varToLocStmnt vars-colors color-homes) arg1)
                                                         ,((varToLocStmnt vars-colors color-homes) arg2))]
                 [`(,unary-instr ,arg) `(,unary-instr ,((varToLocStmnt vars-colors color-homes) arg))]
