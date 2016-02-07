@@ -185,7 +185,13 @@
              ,(foldr append null (map select-instructions thns))
              ,(foldr append null (map select-instructions elss)))))]
     ;; return
-    [`(return ,e) `((movq (,(if (integer? e) 'int 'var) ,e) (reg rax)))]
+    [`(return ,e)
+     (let ([e-int (if (integer? e)
+                      `(int ,e)
+                      (if (boolean? e)
+                          (if e `(int 1) `(int 0))
+                          `(var ,e)))])
+       `((movq ,e-int (reg rax))))]
     ;; program
     [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
      `(program ,vars (type ,t) ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))]))
