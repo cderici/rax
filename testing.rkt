@@ -48,6 +48,10 @@
     (define r1a-tests
       (tests "Jeremy's tests 3: stand up and testify" typechecker passes interp-scheme "r1a" r1a-range))
 
+    (define r2c-range (irange 1 1))
+    (define r2c-tests
+      (tests "Caner's R2 tests" typechecker passes interp-scheme "r2c" r2c-range))
+
     (define uniquify-range (irange 1 5))
     (define uniquify-tests
       (tests "uniquify" typechecker passes interp-scheme "uniquify" uniquify-range))
@@ -56,7 +60,8 @@
     (define flatten-tests
       (tests "flatten" typechecker passes interp-scheme "flatten" flatten-range))
 
-    (define tc-range (irange 1 12))
+    (define tc-range ;(irange 1 12))
+                     (append (irange 1 2) (irange 4 12)))
     (define tc-tests
       (tests "typecheck" typechecker passes interp-scheme "tc" tc-range))
 
@@ -70,6 +75,6 @@
     ;(r2c-tests)
     (uniquify-tests)
     (flatten-tests)
-    ;(tc-tests)
+    (tc-tests)
     ;(torture-tests)
     (display "all tests passed!") (newline)))
