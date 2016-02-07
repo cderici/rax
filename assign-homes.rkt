@@ -23,12 +23,12 @@
 
 (define uncover-live
   (match-lambda
-    [`(program (,vars ...) ,instrs ...)
+    [`(program (,vars ...) (type ,t) ,instrs ...)
      (let-values
          ([(live-afters new-instrs last-before-ignore)
            ;; new-instrs are in correct order (by tail recursion)
            (compute-liveness-sets (reverse instrs) (set) '() '())])
-       `(program (,@vars ,live-afters) ,@new-instrs))]))
+       `(program (,@vars ,live-afters) (type ,t) ,@new-instrs))]))
 
 ;; instrs are given reversed
 (define (compute-liveness-sets instrs live-before-k+1 live-afters new-instrs)
@@ -71,7 +71,7 @@
 ; x86* -> x86*
 (define uncover-live
   (match-lambda
-    [`(program (,vars ...) ,instrs ...)
+    [`(program (,vars ...) (type ,t) ,instrs ...)
      (let
          ([live-afters
            (drop (foldr
@@ -82,7 +82,7 @@
                   ; live-after set k). But that's okay, we'll just end up creating one
                   ; extra live-after set which is guaranteed to be empty, so we drop it.
                   instrs) 1)])
-       `(program (,@vars ,live-afters) ,@instrs))]))
+       `(program (,@vars ,live-afters) (type ,t) ,@instrs))]))
 
 ; Instruction -> Set Variable -> Set Variable
 (define uncover-live-help
@@ -133,12 +133,12 @@
 ; x86* -> x86*
 (define build-interference
   (match-lambda
-    [`(program (,vars ... ,live-afters) ,instrs ...)
+    [`(program (,vars ... ,live-afters) (type ,t) ,instrs ...)
      (let* ([graph (foldl (curry add-edge-interference)
                           (make-graph vars)
                           instrs
                           live-afters)])
-       `(program (,@vars ,graph) ,@instrs))]))
+       `(program (,@vars ,graph) (type ,t) ,@instrs))]))
 
 ; Instruction -> Set Variable -> Graph -> Graph
 (define add-edge-interference
@@ -223,7 +223,7 @@
   (let* ([maxSatur (apply max (if (empty? saturation) '(0) saturation))]
          [candidates (range 0 (+ 2 maxSatur))]
          [chooseFrom (remq* saturation candidates)]
-         
+
          [move-related-node-names (adjacent move-graph nodeName)]
          [move-related-node-colors (foldr (lambda (nd colors)
                                             (if (and (colored? nd)
@@ -247,7 +247,7 @@
                  [maxNodeName (node-name maxSaturatedNode)]
                  [maxNodeSatur (node-satur maxSaturatedNode)]
                  [nodeColor (choose-color maxNodeName var-nodes maxNodeSatur move-graph)]
-                 
+
                  [newVars (remf (lambda (node) (symbol=? maxNodeName (node-name node))) var-nodes)]
                  [updatedVars (update-saturations newVars (adjacent inter-graph maxNodeName) nodeColor '())]
                  )
@@ -309,12 +309,12 @@
 (define (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)
   (let* ([colored-node-list (graph-coloring inter-graph var-nodes move-graph '())]
          [colors-names (map (lambda (nd) (cons (node-color nd) (node-name nd))) colored-node-list)]
-         
+
          [numColors (if (empty? colored-node-list) 0 (add1 (node-color (argmax node-color colored-node-list))))]
          [colors (range 0 numColors)]
-         
+
          [all-registers touchable-reg-list]
-         
+
          [numUsableRegs (if (> num-of-registers (length all-registers))
                             (length all-registers)
                             num-of-registers)]
@@ -325,7 +325,7 @@
            [current-usable-reg-dummy (cadr mapResults)]
            [howmany-stack-locs (caddr mapResults)]
            )
-      (values 
+      (values
        color-to-loc-mapping
        colored-node-list
        howmany-stack-locs
@@ -384,7 +384,7 @@
 (define allocate-registers
   (lambda (numOfRegs)
     (match-lambda
-      [`(program (,formals ... ,graph) ,instructions ...)
+      [`(program (,formals ... ,graph) (type ,t) ,instructions ...)
        (let* ([var-nodes (prep formals)]
               [move-graph (construct-move-graph! instructions (make-graph formals))])
          (let*-values ([(num-of-stack-slots mapping-function)
@@ -394,6 +394,7 @@
                        [(num-of-stack-slots^)
                         (+ num-of-stack-slots (length wcsr))])
            `(program ,(* 16 (ceiling (/ num-of-stack-slots^ 2)))
+                     (type ,t)
                      ,@new-instrs)))])))
 
 (define written-callee-save-regs
@@ -418,6 +419,7 @@
 
 (define exampleProg
   `(program (v w x y z ,eGraph)
+            (type Integer)
             (movq (int 1) (var v))
             (movq (int 46) (var w))
             (movq (var v) (var x))
@@ -445,9 +447,9 @@
         [`(,bin-instr ,arg1 ,arg2) `(,bin-instr ,(varToStackPos arg1 listHomes)
                                                 ,(varToStackPos arg2 listHomes))]
         [`(,unary-instr ,arg) `(,unary-instr ,(varToStackPos arg listHomes))]
-        [`(program (,vars ...)  ,instructions ...)
+        [`(program (,vars ...) (type ,t) ,instructions ...)
          (let ((frame-size (* 16 (ceiling (/ (length vars) 2))))
                ;; every-one's on the stack!
                (homes (map cons vars (build-list (length vars) (lambda (x) (* (add1 x) -8))))))
-           `(program ,frame-size ,@(map (assign-homes-old homes) instructions)))]))))
+           `(program ,frame-size (type ,t) ,@(map (assign-homes-old homes) instructions)))]))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; A1 STUFF

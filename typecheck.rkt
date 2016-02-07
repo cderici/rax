@@ -53,11 +53,7 @@
                                          "\t\t\t~a"
                                          "In the expression:\t~a"))
                               e1-ty e2-ty e1 e2 expr))))]
-        [`(program ,body)
-         (begin
-           ((typecheck `()) body) ; Make sure everything is well typed...
-           expr)]                  ; ...then proceed as normal
-        ))))
+        [`(program ,body) ((typecheck `()) body)]))))
 
 (define tc-unary-expr
   (λ (arg-ty res-ty e env expr)

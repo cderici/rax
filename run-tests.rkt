@@ -2,4 +2,4 @@
 
 (require "compiler.rkt" "testing.rkt")
 
-(all-tests r1-passes)
+(all-tests r2-passes)
