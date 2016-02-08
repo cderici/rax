@@ -48,8 +48,7 @@
     (define r1a-tests
       (tests "Jeremy's tests 3: stand up and testify" typechecker passes interp-scheme "r1a" r1a-range))
 
-    (define r2-range ;(irange 1 23))
-                      (append (irange 1 12) (irange 14 23)))
+    (define r2-range (irange 1 23)) ;(append (irange 1 12) (irange 14 23)))
     (define r2-tests
       (tests "Jeremy's tests 4: 4 Fast 4 Furious" typechecker passes interp-scheme "r2" r2-range))
 

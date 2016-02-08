@@ -48,10 +48,19 @@
 
 (define (change-var newVar oldVar assignments)
   (cond
-    ((null? assignments) (error 'change-var "there should be at least one assignment here"))
-    ((eqv? oldVar (cadr (car assignments)))
-     (cons `(assign ,newVar ,(caddr (car assignments))) (cdr assignments)))
-    (else (cons (car assignments) (change-var newVar oldVar (cdr assignments))))))
+    [(null? assignments) '()]; (error 'change-var (format "there should be at least one assignment here, I'm trying to change ~a, with ~a" oldVar newVar)))
+    [else
+     (match (car assignments)
+       [`(assign ,var ,val)
+        (if (eqv? var oldVar)
+            (cons `(assign ,newVar ,val) (cdr assignments))
+            (cons (car assignments) (change-var newVar oldVar (cdr assignments))))]
+       [`(if (eq? ,e1 ,e2) ,thns ,elss)
+        (cons `(if (eq? ,(if (eqv? e1 oldVar) newVar e1) ,(if (eqv? e2 oldVar) newVar e2))
+                   ,(change-var newVar oldVar thns)
+                   ,(change-var newVar oldVar elss))
+              (change-var newVar oldVar (cdr assignments)))]
+       [else (error 'change-var (format "unhandled case : ~a" (car assignments)))])]))
 
 ;; R2 -> C1
 (define flatten
@@ -93,6 +102,8 @@
                 (if cnd
                     (values flat-thn statements-thn)
                     (values flat-els statements-els)))]
+             [(? symbol?)
+              ((flatten vars) `(if (eq? #t ,cnd) ,thn ,els))]
              ;; if 'not' flipping the branches
              [`(not ,exp) ((flatten vars) `(if ,exp ,els ,thn))]
              ;; getting rid of let
@@ -127,7 +138,7 @@
                                    (if ,els-inner ,thn ,els)))]
                            
              [else
-              (error 'optimizing-if (format "there is an unhandled conditional case : ~a" cnd))])]
+              (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
