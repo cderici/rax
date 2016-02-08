@@ -60,8 +60,7 @@
     (define flatten-tests
       (tests "flatten" typechecker passes interp-scheme "flatten" flatten-range))
 
-    (define tc-range ;(irange 1 12))
-                     (append (irange 1 2) (irange 4 12)))
+    (define tc-range (irange 1 12))
     (define tc-tests
       (tests "typecheck" typechecker passes interp-scheme "tc" tc-range))
 
