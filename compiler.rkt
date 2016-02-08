@@ -285,11 +285,12 @@
      (if (null? i) "" (display-instr "addq" "$~a, %rsp" i)))))
 
 (define print-x86-64-instr
-  (match-lambda
+  (match-lambda      
     [`(,op ,a1 ,a2) (display-instr "~a" "~a, ~a"
                                    (symbol->string op)
                                    (print-x86-64-arg a1)
                                    (print-x86-64-arg a2))]
+    [`(label ,sym) (string-append (symbol->string sym) ":\n")]
     [`(callq ,l) (display-instr "callq" "~a"
                                 (label l))]
     [`(,op ,a) (display-instr "~a" "~a"
@@ -298,10 +299,12 @@
     [`(,unary) (symbol->string unary)]))
 
 (define print-x86-64-arg
-  (match-lambda
-    [`(int ,i)   (format "$~a" i)]
-    [`(reg ,r)   (format "%~a" r)]
-    [`(stack ,s) (format "~a(%rbp)" s)]))
+  (lambda (e)
+    (match e
+      [(? symbol?) (symbol->string e)]
+      [`(int ,i)   (format "$~a" i)]
+      [`(reg ,r)   (format "%~a" r)]
+      [`(stack ,s) (format "~a(%rbp)" s)])))
 
 (define display-instr
   (match-lambda*
@@ -337,5 +340,6 @@
                     ("flatten" ,(flatten '()) ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
+                    ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))

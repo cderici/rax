@@ -48,7 +48,7 @@
     (define r1a-tests
       (tests "Jeremy's tests 3: stand up and testify" typechecker passes interp-scheme "r1a" r1a-range))
 
-    (define r2c-range (irange 1 1))
+    (define r2c-range (irange 1 2))
     (define r2c-tests
       (tests "Caner's R2 tests" typechecker passes interp-scheme "r2c" r2c-range))
 
@@ -72,7 +72,7 @@
     (r0-tests)
     (r1-tests)
     (r1a-tests)
-    ;(r2c-tests)
+    (r2c-tests)
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)
