@@ -4,12 +4,16 @@
 
 (require "utilities.rkt")
 
+; R3 -> Type
 (define typecheck
   (λ (env)
     (λ (expr)
       (match expr
         [(? fixnum?)  `Integer]
         [(? boolean?) `Boolean]
+        [`(vector ,exp1 ,exps ...)
+         (let ([ts (map (typecheck env) (cons exp1 exps))])
+           `(Vector ,@ts))]
         [(? symbol?)  (lookup expr env)]
         [`(read)      `Integer]
         [`(let ([,x ,e]) ,body)
@@ -39,20 +43,35 @@
          (let ([e1-ty ((typecheck env) e1)]
                [e2-ty ((typecheck env) e2)])
            (if (eqv? e1-ty e2-ty)
-               (match e1-ty
-                 ; I'm not sure if eq? will be extended in the future to
-                 ; support more things than Boolean or Integer, but for
-                 ; now, we'll just hardcode the possible types
-                 [(or `Boolean `Integer) `Boolean]
-                 [_ (type-error `Boolean e1-ty e1 expr)])
+               `Boolean
                (error (format (unlines `("Type error:"
-                                         "\tExpected:\teither two Booleans or two Integers"
+                                         "\tExpected:\ttwo equal types"
                                          "\tActual:\t\t~a"
                                          "\t\t\t~a"
                                          "In the subexpressions:\t~a"
                                          "\t\t\t~a"
                                          "In the expression:\t~a"))
                               e1-ty e2-ty e1 e2 expr))))]
+        [`(vector-ref ,vec-exp ,ix)
+         (match ((typecheck env) ix)
+           [`Integer
+            (match ((typecheck env) vec-exp)
+              [`(Vector ,ty1 ,tys ...)
+               (list-ref (cons ty1 tys) ix)]
+              [actual-ty (type-error `(Vector ...) actual-ty vec-exp expr)])]
+           [actual-ty (type-error `Integer actual-ty ix expr)])]
+        [`(vector-set! ,vec-exp ,ix ,new-val)
+         (match ((typecheck env) ix)
+           [`Integer
+            (match ((typecheck env) vec-exp)
+              [`(Vector ,ty1 ,tys ...)
+               (let ([new-val-ty ((typecheck env) new-val)]
+                     [old-val-ty (list-ref (cons ty1 tys) ix)])
+                 (if (eq? old-val-ty new-val-ty)
+                     `Void
+                     (type-error old-val-ty new-val-ty new-val expr)))]
+              [actual-ty (type-error `(Vector ...) actual-ty vec-exp expr)])]
+           [actual-ty (type-error `Integer actual-ty ix expr)])]
         [`(program ,body) ((typecheck `()) body)]))))
 
 (define tc-unary-expr
