@@ -5,3 +5,5 @@ compiled/
 *.o
 *.s
 a.out
+*.exe
+*.bak

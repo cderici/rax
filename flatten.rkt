@@ -2,6 +2,7 @@
 
 (require "utilities.rkt")
 
+(provide flatten)
 
 (define (getVars assignments)
   (foldr (lambda (assgn vars)
