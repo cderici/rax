@@ -98,8 +98,8 @@
 (define lower-conditionals
   (match-lambda
     [`(if (eq? ,e1 ,e2) ,thns ,elss)
-     (let ([thenlabel (genlabel 'then)]
-           [endlabel  (genlabel 'end)])
+     (let ([thenlabel (genlabel `then)]
+           [endlabel  (genlabel `end)])
        `((cmpq ,e1 ,e2)
          (je ,thenlabel)
          ,@(append-map lower-conditionals elss)
@@ -133,8 +133,9 @@
       [`(program ,i (type ,t) ,instrs ...)
        (let ([wcsr (written-callee-save-regs instrs)])
          (foldr string-append ""
-                `(,(format "\t.globl ~a\n" (label "main"))
-                  ,(label "main:\n")
+                `(,(format "\t.globl ~a\n" (label `main))
+                  ,(symbol->string (label `main))
+                  ":\n"
                   ;; Prelude
                   ,(display-instr "pushq" "%rbp")
                   ,(display-instr "movq" "%rsp, %rbp")
@@ -151,10 +152,12 @@
                   ,(display-instr "retq" ""))))])))
 
 (define print-returned-value
-  (match-lambda
-    [`Integer (label "print_int")]
-    [`Boolean (label "print_bool")]
-    [ty       (error (format "Don't know how to print value of type ~a" ty))]))
+  (lambda (ty)
+    (symbol->string
+     (match ty
+       [`Integer (label `print_int)]
+       [`Boolean (label `print_bool)]
+       [_        (error (format "Don't know how to print value of type ~a" ty))]))))
 
 (define save-callee-regs
   (λ (instrs i wcsr)
@@ -183,7 +186,7 @@
      (if (null? i) "" (display-instr "addq" "$~a, %rsp" i)))))
 
 (define print-x86-64-instr
-  (match-lambda      
+  (match-lambda
     [`(,op ,a1 ,a2) (display-instr "~a" "~a, ~a"
                                    (symbol->string op)
                                    (print-x86-64-arg a1)
@@ -218,7 +221,7 @@
 (define label
   (lambda (l)
     (match (system-type 'os)
-      [`macosx (string-append "_" l)]
+      [`macosx (string->symbol (string-append "_" (symbol->string l)))]
       [_ l])))
 
 (define genlabel
