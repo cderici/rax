@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "runtime.h"
+
+/********************************
+ *        Ryan's headers        *
+ ********************************/
+#include "cheney.h"
+
 #define DEBUG_MODE 1
 
 // Often misunderstood static global variables in C are not
@@ -236,7 +242,7 @@ static void copy_vector(int64_t** vector_ptr_loc);
 
 void cheney(int64_t** rootstack_ptr)
 {
-
+  rgscott_cheney(rootstack_ptr);
 }
 
 
@@ -316,4 +322,12 @@ void print_bool(int64_t x) {
   } else {
     printf("#f");
   }
+}
+
+/****************************************************************************
+ *                              Ryan's stuff                                *
+ ****************************************************************************/
+
+void rgscott_cheney(int64_t** rootstack_ptr) {
+
 }

@@ -2,7 +2,7 @@
 
 CC = gcc
 
-runtime.o: runtime.c runtime.h
+runtime.o: runtime.c runtime.h cheney.h
 	$(CC) -c -g -std=c99 runtime.c
 
 test: runtime
