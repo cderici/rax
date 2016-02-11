@@ -1,8 +1,8 @@
-.PHONY: clean
+.PHONY: clean test
 
 CC = gcc
 
-runtime: runtime.o
+runtime.o: runtime.c runtime.h
 	$(CC) -c -g -std=c99 runtime.c
 
 test: runtime
