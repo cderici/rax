@@ -15,6 +15,7 @@
          (let ([ts (map (typecheck env) (cons exp1 exps))])
            `(Vector ,@ts))]
         [(? symbol?)  (lookup expr env)]
+        [`(void)      `Void]
         [`(read)      `Integer]
         [`(let ([,x ,e]) ,body)
          (let* ([t ((typecheck env) e)]
