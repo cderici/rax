@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "runtime.h"
@@ -6,7 +7,8 @@
 /********************************
  *        Ryan's headers        *
  ********************************/
-#include "cheney.h"
+#include "rgscott_cheney.h"
+#include "rgscott_utilities.h"
 
 #define DEBUG_MODE 1
 
@@ -298,7 +300,7 @@ void cheney(int64_t** rootstack_ptr)
 */
 void copy_vector(int64_t** vector_ptr_loc)
 {
-
+  rgscott_copy_vector(vector_ptr_loc);
 }
 
 
@@ -328,6 +330,142 @@ void print_bool(int64_t x) {
  *                              Ryan's stuff                                *
  ****************************************************************************/
 
-void rgscott_cheney(int64_t** rootstack_ptr) {
+/*
+  The cheney algorithm takes a pointer to the top of the rootstack.
+  It resets the free pointer to be at the begining of tospace, copies
+  (or reallocates) the data pointed to by the roots into tospace and
+  replaces the pointers in the rootset with pointers to the
+  copies. (See the description of copy_vector below).
 
+  While this initial copying of root vectors is occuring the free_ptr
+  has been maintained to remain at the next free memory location in
+  tospace. Cheney's algorithm then scans a vector at a time until it
+  reaches the free_ptr.
+
+  At each vector we use the meta information stored in the vector tag
+  to find the length of the vector and tell which fields inside the
+  vector are vector pointers. Each new vector pointer must have its
+  data copied and every vector pointer must be updated to to point to
+  the copied data. (The description of copy_vector will help keep this
+  organized.
+
+  This process is a breadth first graph traversal. Copying a vector
+  places its contents at the end of a Fifo queue and scanning a vector
+  removes it. Eventually the graph traversal will run out of unseen
+  nodes "catch up" to the free pointer. When this occurs we know that
+  all live data in the program is contained by tospace, and that
+  everything left in fromspace is unreachable by the program.
+
+  After this point the free pointer will be pointing into what until
+  now we considered tospace. This means the program will allocate
+  object here. In order to keep track of the we "flip" fromspace and
+  tospace by making the fromspace pointers point to tospace and vice
+  versa.
+*/
+void rgscott_cheney(int64_t **rootstack_ptr) {
+  // Reset free pointer to be beginning of tospace
+  free_ptr = tospace_begin;
+  int64_t *queue_start = free_ptr;
+
+  // Copy over the first vector. Now iterator_ptr points to that vector in tospace,
+  // and free_ptr points to the next available memory chunk in tospace.
+  rgscott_copy_vector((int64_t **)(rootstack_ptr[0]));
+
+  // Keep copying subsequent vectors until you catch up to the free_ptr.
+  for ( int64_t *iterator_ptr = queue_start
+      ; iterator_ptr < free_ptr
+      ; iterator_ptr += sizeof(int64_t *)
+      ) {
+    const int64_t tag          = iterator_ptr[0];
+    const int     vector_len   = get_length(tag);
+    const int64_t ptr_bitfield = get_ptr_bitfield(tag);
+
+    for (int i = 0; i < vector_len; ++i) {
+      // If the child is a pointer (and not an integer)
+      if (rgscott_test_bit(ptr_bitfield, i)) {
+	    int64_t *vector_ptr_loc = (int64_t *)(iterator_ptr[1 + i]);
+        copy_vector(&vector_ptr_loc);
+      }
+    }
+  }
+}
+
+/*
+ copy_vector takes a pointer, (`location`) to a vector pointer,
+ copies the vector data from fromspace into tospace, and updates the
+ vector pointer so that it points to the the data's new address in
+ tospace.
+
+  Precondition:
+    *  original vector pointer location
+    |
+    V
+   [*] old vector pointer
+    |
+    +-> [tag or forwarding pointer | ? | ? | ? | ...] old vector data
+
+ Postcondition:
+    * original vector pointer location
+    |
+    V
+   [*] new vector pointer
+    |
+    |   [ * forwarding pointer | ? | ? | ? | ...] old vector data
+    |     |
+    |     V
+    +---->[tag | ? | ? | ? | ...] new vector data
+
+ Since multiple pointers to the same vector can exist within the
+ memory of the program this may or may not be the first time
+ we called `copy_vector` on a location that contains this old vector
+ pointer. In order to tell if we have copied the old vector data previously we
+ check the vector information tag (`tag = old_vector_pointer[0]`).
+
+ If the forwarding bit is set, then is_forwarding(tag) will return
+ false and we know we haven't already copied the data. In order to
+ figure out how much data to copy we can inspect the tag's length
+ field. The length field indicates the number of 64-bit words the
+ array is storing for the user, so we need to copy `length + 1` words
+ in total, including the tag. After performing the
+ copy we need to leave a forwarding pointer in old data's tag field
+ to indicate the new address to subsequent copy_vector calls for this
+ vector pointer. Furthermore, we need to store the new vector's pointer
+ at the location where where we found the old vector pointer.
+
+ If the tag is a forwarding pointer, the `is_forwarding(tag) will return
+ true and we need to update the location storing the old vector pointer to
+ point to the new data instead).
+
+ As a side note any time you are allocating new data you must maintain
+ the invariant that the free_ptr points to the next free memory address.
+
+*/
+void rgscott_copy_vector(int64_t **vector_ptr_loc) {
+  const int64_t tag = *vector_ptr_loc[0];
+
+  if (is_forwarding(tag)) {
+    // Update location of pointer to point to new data
+    *vector_ptr_loc = (int64_t *) tag;
+  } else {
+    const int vector_length = get_length(tag);
+
+    // Advance the free_ptr, then
+    const long new_bytes = sizeof(int64_t) * (vector_length + 1);
+    int64_t *new_vector = free_ptr;
+    free_ptr += new_bytes;
+
+    // Copy over the data (including the tag!)
+    for (int i = 0; i <= vector_length; ++i) {
+      new_vector[i] = *vector_ptr_loc[i];
+    }
+
+    // Change tags of both (1) the old pointer, and (2) the old pointer's location
+    // to be forwarding pointer to new data
+    *(int64_t **)(*vector_ptr_loc) = new_vector;
+    *vector_ptr_loc                = new_vector;
+  }
+}
+
+bool rgscott_test_bit(const int64_t bitfield, const int n) {
+  return (bitfield & (1 << n)) != 0;
 }

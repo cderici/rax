@@ -1,12 +1,14 @@
 .PHONY: clean test
 
-CC = gcc
+CC     = gcc
+RACKET = racket
+RM     = rm
 
-runtime.o: runtime.c runtime.h cheney.h
+runtime.o: runtime.c runtime.h rgscott_cheney.h rgscott_utilities.h
 	$(CC) -c -g -std=c99 runtime.c
 
-test: runtime
-	racket run-tests.rkt
+test: runtime.o
+	$(RACKET) run-tests.rkt
 
 clean:
-	rm -f *.o *.out *.exe *.s *~
+	$(RM) -f *.o *.out *.exe *.s *~
