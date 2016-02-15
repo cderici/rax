@@ -29,7 +29,7 @@
                            (cdr idNewID)))]
         [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
-        [`(program ,e) `(program (type ,(typechecker e)) ,((uniquify alist) e))]
+        [`(program (type ,t) ,e) `(program (type ,t) ,((uniquify alist) e))]
         [`(,op ,es ...) `(,op ,@(map (uniquify alist) es))]))))
 
 
@@ -237,7 +237,8 @@
                     ("print x86" ,print-x86-64 #f)))
 
 ; [Pass]
-(define r2-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
+(define r2-passes `(; Implicit typecheck pass occurs at beginning
+                    ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
