@@ -155,9 +155,11 @@
   (lambda (ty)
     (symbol->string
      (match ty
-       [`Integer (label `print_int)]
-       [`Boolean (label `print_bool)]
-       [_        (error (format "Don't know how to print value of type ~a" ty))]))))
+       [`Integer     (label `print_int)]
+       [`Boolean     (label `print_bool)]
+       [`(Vector ,_) (label `print_vector)] ; TODO: This probably isn't right
+       [`Void        (label `print_void)]
+       [_            (error (format "Don't know how to print value of type ~a" ty))]))))
 
 (define save-callee-regs
   (λ (instrs i wcsr)
