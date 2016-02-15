@@ -1,7 +1,7 @@
 #lang racket
 
 (require "utilities.rkt" "interp.rkt" "testing.rkt"
-         "flatten.rkt" "assign-homes.rkt" "typecheck.rkt")
+         "flatten.rkt" "assign-homes.rkt" "typecheck.rkt" "uncover-types.rkt")
 
 (provide r1-passes
          r2-passes
@@ -32,7 +32,30 @@
         [`(program ,e) `(program (type ,(typechecker e)) ,((uniquify alist) e))]
         [`(,op ,es ...) `(,op ,@(map (uniquify alist) es))]))))
 
+;; C2 -> C2
+;; expose-allocation (after flatten)
+(define expose-allocation
+  (lambda (heap-size-bytes var-types)
+    (lambda (e)
+      (match e
+        [`(assign ,lhs (vector ,e ...))
+         (let* ([len (length e)]
+                [bytes (+ 8 (* len 8))])
+           `((if (collection-needed? ,bytes)
+                 ((collect ,bytes))
+                 ())
+             (assign ,lhs (allocate ,len ,(cdr (assv lhs var-types))))
+             ,@(map (lambda (vector-element position)
+                      (let ([void-var (string->symbol (string-append "void." (number->string position)))])
+                        `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
+                    e (range len))))]
+        
+        [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
+         (let* ([var-types (uncover-types e)]
+                [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))])
+           `(program ,var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,new-assignments (return ,final-e)))]
 
+        [else `(,e)]))))
 
 ;; C1 -> x86_1*
 ;; doesn't change the (program (vars) assignments ... return) structure
