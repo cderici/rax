@@ -3,10 +3,7 @@ compiled/
 \#*
 .\#*
 *.o
-*.s
+tests/*.s
 *.out
 *.exe
 *.bak
-
-# A very simple sanity test for the garbage collector
-!sample.s
