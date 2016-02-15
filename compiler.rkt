@@ -53,9 +53,32 @@
         [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
          (let* ([var-types (uncover-types e)]
                 [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))])
-           `(program ,var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,new-assignments (return ,final-e)))]
+           `(program ,var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,@new-assignments (return ,final-e)))]
 
         [else `(,e)]))))
+
+
+(define (uncover-live-roots assignments current-lives out)
+  (cond
+    ((empty? assignments) (reverse out))
+    (else (match (car assignments)
+            [`(assign ,var (allocate ,n (Vector ,some-type)))
+             (uncover-live-roots (cdr assignments) (cons var current-lives) (cons (car assignments) out))]
+            [`(if (collection-needed? ,n) ((collect ,n)) ())
+             (uncover-live-roots (cdr assignments) current-lives
+                                 (cons `(if (collection-needed? ,n)
+                                            ((call-live-roots ,current-lives (collect ,n)))
+                                            ()) out))]
+            [else (uncover-live-roots (cdr assignments) current-lives (cons (car assignments) out))]))))
+
+(define uncover-call-live
+  (lambda (e)
+    (match e
+      [`(program ,var-types (type ,t) (initialize ,s ,h) ,assignments ... (return ,final-e))
+       (let ([vars-without-types (map car var-types)]
+             [new-assignments (uncover-live-roots assignments '() '())])
+       `(program ,vars-without-types (type ,t) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
+       
 
 ;; C1 -> x86_1*
 ;; doesn't change the (program (vars) assignments ... return) structure
