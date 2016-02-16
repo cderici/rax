@@ -73,7 +73,9 @@
                      (type-error old-val-ty new-val-ty new-val expr)))]
               [actual-ty (type-error `(Vector ...) actual-ty vec-exp expr)])]
            [actual-ty (type-error `Integer actual-ty ix expr)])]
-        [`(program ,body) ((typecheck `()) body)]))))
+        [`(program ,body)
+         `(program (type ,((typecheck `()) body))
+                   ,body)]))))
 
 (define tc-unary-expr
   (λ (arg-ty res-ty e env expr)

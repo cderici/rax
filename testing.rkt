@@ -10,7 +10,7 @@
     (foldl (match-lambda**
             [((list _ pass _) q-pass) (compose1 pass q-pass)])
            (if wrap-program
-               (curry list `program)
+               (λ (e) `(program (type ,(typechecker e)) ,e))
                identity)
            passes)))
 
