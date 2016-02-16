@@ -199,7 +199,14 @@
     (match e
       [(? symbol?) (symbol->string e)]
       [`(int ,i)   (format "$~a" i)]
-      [`(reg ,r)   (format "%~a" r)]
+      [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
+      [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
+      [`(offset (stack ,s) ,n) (format "~a(%rbp)" (+ n s))] ;; keeping this separate cause I'm not sure if I'm doing the right thing
+                 
+      ;; keeping them seperate to easily see if we need any other global-value
+      [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
+      [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
+      [`(global-value fromspace_end) (format "~a(%rip)" (label 'fromspace_end))]
       [`(stack ,s) (format "~a(%rbp)" s)])))
 
 (define display-instr

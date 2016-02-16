@@ -3,6 +3,11 @@
 (require "utilities.rkt")
 
 (provide
+ prep
+ construct-move-graph!
+ find-homes-to-colors
+ node->list
+ 
  build-interference
  uncover-live
  allocate-registers
@@ -123,11 +128,14 @@
 (define variable
   (match-lambda
     [`(,(or `var `reg) ,name) (set name)]
+    [`(offset ,var ,n) (variable var)]
+    [(or `(byte-reg ,free-var) `(global-value ,free-var)) (set)]
     [`(int ,_)                (set)]))
 
 ; Arg -> (Int | Symbol) [not-particularly well-typed]
 (define arg-payload
   (match-lambda
+    [`(offset (var ,payload) ,_) payload]
     [`(,_ ,payload) payload]))
 
 ; x86* -> x86*
@@ -170,6 +178,7 @@
       [`(cmpq ,arg1 ,arg2) graph]
       ;; since we're not writing anything
       [`(sete (byte-reg al)) graph]
+      [`(setl (byte-reg al)) graph]
       [`(if (eq? ,e1 ,e2) ,thns ,thn-lives ,elss ,els-lives)
        (foldl (curry add-edge-interference)
               (foldl (curry add-edge-interference)
@@ -332,12 +341,16 @@
        ))))
 
 ;; varToLocStmnt
+;; REFACTOR
 (define (varToLocStmnt nodes-colors color-location)
   (lambda (var-expr)
     (match var-expr
       [`(var ,varID)
        (let* ([color-of-node* (assv varID nodes-colors)]
-              [color-of-node (if (not color-of-node*) (error 'varToLocStmnt "we have an unmapped node!!!!") (cdr color-of-node*))]
+              [color-of-node (if (not color-of-node*) (error 'varToLocStmnt (string-append
+                                                                             "we have an unmapped node --> "
+                                                                             (symbol->string varID)))
+                                 (cdr color-of-node*))]
               [home-of-node* (assv color-of-node color-location)]
               [home-of-node (if (not home-of-node*) (error 'varToLocStmnt "we have an unmapped color!!!") (cdr home-of-node*))])
          (if (symbol? home-of-node)
@@ -347,6 +360,19 @@
                  ;; then it's a stack position
                  `(stack ,home-of-node)
                  (error 'varToLocStmnt "what the heck! we have a location that's neither reg, nor stack pos!"))))]
+      [`(offset (var ,varID) ,n)
+       (let* ([color-of-node* (assv varID nodes-colors)]
+              [color-of-node (if (not color-of-node*) (error 'varToLocStmnt (string-append
+                                                                             "we have an unmapped node --> "
+                                                                             (symbol->string varID)))
+                                 (cdr color-of-node*))]
+              [home-of-node* (assv color-of-node color-location)]
+              [home-of-node (if (not home-of-node*) (error 'varToLocStmnt "we have an unmapped color!!!") (cdr home-of-node*))])
+         `(offset ,(if (symbol? home-of-node)
+                       `(reg ,home-of-node)
+                       (if (number? home-of-node)
+                           `(stack ,home-of-node)
+                           (error 'varToLocStmnt "you have couple of hours of debugging, good luck pal!"))) ,n))]
       [else var-expr] ;; var-expr can also be a (reg ...) expr (rax from a (read) etc.)
       )))
 

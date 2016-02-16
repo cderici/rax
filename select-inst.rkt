@@ -97,7 +97,7 @@
           (select-instructions-inner
            (cdr assignments+return)
            rootstack-var
-           added-vars
+           (cons rootstack-var added-vars)
            (append (reverse `((movq (int ,rootlen) (reg rdi))
                               (movq (int ,heaplen) (reg rsi))
                               (callq initialize)
