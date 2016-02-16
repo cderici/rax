@@ -1,7 +1,8 @@
 #lang racket
 
 (require "utilities.rkt" "interp.rkt" "testing.rkt"
-         "flatten.rkt" "assign-homes.rkt" "typecheck.rkt" "uncover-types.rkt")
+         "flatten.rkt" "assign-homes.rkt" "typecheck.rkt"
+         "uncover-types.rkt" "select-inst.rkt")
 
 (provide r1-passes
          r2-passes
@@ -32,6 +33,8 @@
         [`(program ,e) `(program (type ,(typechecker e)) ,((uniquify alist) e))]
         [`(,op ,es ...) `(,op ,@(map (uniquify alist) es))]))))
 
+(define void-count -1)
+
 ;; C2 -> C2
 ;; expose-allocation (after flatten)
 (define expose-allocation
@@ -46,14 +49,17 @@
                  ())
              (assign ,lhs (allocate ,len ,(cdr (assv lhs var-types))))
              ,@(map (lambda (vector-element position)
-                      (let ([void-var (string->symbol (string-append "void." (number->string position)))])
+                      (let ([void-var (string->symbol (string-append "void." (begin (set! void-count (add1 void-count))
+                                                                                    (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
         
         [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
          (let* ([var-types (uncover-types e)]
-                [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))])
-           `(program ,var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,@new-assignments (return ,final-e)))]
+                [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))]
+                [new-vars (getVars new-assignments)]
+                [new-var-types (uncover-types `(program ,new-vars (type ,t) ,@new-assignments (return ,final-e)))])
+           `(program ,new-var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,@new-assignments (return ,final-e)))]
 
         [else `(,e)]))))
 
@@ -80,65 +86,6 @@
        `(program ,vars-without-types (type ,t) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
        
 
-;; C1 -> x86_1*
-;; doesn't change the (program (vars) assignments ... return) structure
-(define select-instructions
-  (match-lambda
-    ;; assign
-    [`(assign ,var ,rhs)
-     (match rhs
-       [(? symbol?) `((movq (var ,rhs) (var ,var)))]
-       [(? integer?) `((movq (int ,rhs) (var ,var)))]
-       [(? boolean?) `((movq (int ,(if rhs 1 0)) (var ,var)))]
-       [`(read) `((callq read_int) (movq (reg rax) (var ,var)))]
-       [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) ,arg) (var ,var)) (negq (var ,var)))]
-       [`(+ ,arg1 ,arg2)
-        (cond
-          [(equal? arg1 var) `((addq ,arg1 ,var))]
-          [(equal? arg2 var) `((addq ,arg2 ,var))]
-          [else
-           `((movq (,(if (integer? arg1) 'int 'var) ,arg1) (var ,var))
-             (addq (,(if (integer? arg2) 'int 'var) ,arg2) (var ,var)))
-           ])]
-       [`(not ,arg) ;; arg : var|bool (kudos to the typechecker)
-        (cond
-          [(boolean? arg) `((movq (int ,(if arg 1 0)) (var ,var)) (xorq (int 1) (var ,var)))]
-          [(symbol? arg) `((movq (var ,arg) (var ,var)) (xorq (int 1) (var ,var)))]
-          [else (error 'select-instructions "we shouldn't have as arg to 'not' any form other than boolean or var(symbol)")])]
-       [`(eq? ,arg1 ,arg2)
-        ;; TODO : refactor
-        (let ([arg1-instr (cond [(boolean? arg1) `(int ,(if arg1 1 0))]
-                                [(integer? arg1) `(int ,arg1)]
-                                [(symbol? arg1) `(var ,arg1)])]
-              [arg2-instr (cond [(boolean? arg2) `(int ,(if arg2 1 0))]
-                                [(integer? arg2) `(int ,arg2)]
-                                [(symbol? arg2) `(var ,arg2)])])
-          `((cmpq ,arg1-instr ,arg2-instr)
-            (sete (byte-reg al))
-            (movzbq (byte-reg al) (var ,var))))]
-       [else (error 'select-instructions "don't know how to handle this rhs~a")])]
-    ;; if
-    [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
-     (let ([exp1-inst (cond [(boolean? exp1) `(int ,(if exp1 1 0))]
-                            [(integer? exp1) `(int ,exp1)]
-                            [(symbol? exp1) `(var ,exp1)])]
-           [exp2-inst (cond [(boolean? exp2) `(int ,(if exp2 1 0))]
-                            [(integer? exp2) `(int ,exp2)]
-                            [(symbol? exp2) `(var ,exp2)])])
-       `((if (eq? ,exp1-inst ,exp2-inst)
-             ,(foldr append null (map select-instructions thns))
-             ,(foldr append null (map select-instructions elss)))))]
-    ;; return
-    [`(return ,e)
-     (let ([e-int (if (integer? e)
-                      `(int ,e)
-                      (if (boolean? e)
-                          (if e `(int 1) `(int 0))
-                          `(var ,e)))])
-       `((movq ,e-int (reg rax))))]
-    ;; program
-    [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
-     `(program ,vars (type ,t) ,@(foldr append '() (map select-instructions assignments)) ,@(select-instructions `(return ,final-e)))]))
 
 ; x86_1* (with if-statments) -> x86_1* (without if-statements)
 (define lower-conditionals

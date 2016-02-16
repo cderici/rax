@@ -2,21 +2,23 @@
 
 (require "utilities.rkt")
 
-(provide flatten)
+(provide flatten getVars)
 
 (define (getVars assignments)
-  (foldr (lambda (assgn vars)
-           (match assgn
-             [`(assign ,var ,val) (cons var vars)]
-             [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
-              (let* ([thnVars (getVars thns)]
-                     [elsVars (getVars elss)]
-                     [allVars (append thnVars elsVars vars)]
-                     [exp1-maybe (if (symbol? exp1) (cons exp1 allVars) allVars)]
-                     [exp2-maybe (if (symbol? exp2) (cons exp2 exp1-maybe) exp1-maybe)])
-                ;; we run remove-duplicates at the top level, so don't worry about the uniqueness
-                exp2-maybe)]))
-         '() assignments))
+  (remove-duplicates
+   (foldr (lambda (assgn vars)
+            (match assgn
+              [`(assign ,var ,val) (cons var vars)]
+              [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
+               (let* ([thnVars (getVars thns)]
+                      [elsVars (getVars elss)]
+                      [allVars (append thnVars elsVars vars)]
+                      [exp1-maybe (if (symbol? exp1) (cons exp1 allVars) allVars)]
+                      [exp2-maybe (if (symbol? exp2) (cons exp2 exp1-maybe) exp1-maybe)])
+                 ;; we run remove-duplicates at the top level, so don't worry about the uniqueness
+                 exp2-maybe)]
+              [else vars]))
+          '() assignments)))
 
 
 (define (change-var newVar oldVar assignments)
@@ -42,7 +44,7 @@
       (match e
         [`(program (type ,t) ,e)
          (let-values ([(final-exp assignments) ((flatten vars) e)])
-           (let ([vars (remove-duplicates (getVars assignments))])
+           (let ([vars (getVars assignments)])
              `(program ,vars (type ,t) ,@assignments (return ,final-exp))))]
         ;; values
         [(? boolean?) (values e '())]
