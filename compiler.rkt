@@ -6,6 +6,7 @@
 
 (provide r1-passes
          r2-passes
+         r3-passes
          uniquify
          flatten
          select-instructions
@@ -242,6 +243,18 @@
 (define r2-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
+                    ("select instructions" ,select-instructions ,interp-x86)
+                    ("register-allocation" ,(register-allocation 5) ,interp-x86)
+                    ("lower-conditionals" ,lower-conditionals ,interp-x86)
+                    ("patch instructions" ,patch-instr ,interp-x86)
+                    ("print x86" ,print-x86-64 #f)))
+
+; [Pass]
+(define r3-passes `(; Implicit typecheck pass occurs at beginning
+                    ("uniquify" ,(uniquify '()) ,interp-scheme)
+                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 1024 `()) ,interp-C)
+                    ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
