@@ -160,11 +160,12 @@
              rootstack-var
              added-vars
              (append
-              (reverse 
-               `((if (eq? ,exp1-inst ,exp2-inst)
-                     ,(foldr append null (map select-instructions thns))
-                     ,(foldr append null (map select-instructions elss))))) out-assignments)))]
-         ;; return
+              (reverse
+               (let-values ([(out-thns added-thns) (select-instructions-inner thns rootstack-var added-vars '())]
+                            [(out-elss added-elss) (select-instructions-inner elss rootstack-var added-vars '())])
+                 `((if (eq? ,exp1-inst ,exp2-inst)
+                       ,out-thns
+                       ,out-elss)))) out-assignments)))]         
          [`(return ,e)
           (let ([e-int (if (integer? e)
                            `(int ,e)
