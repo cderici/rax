@@ -93,7 +93,8 @@
                          [(? symbol?) `(var ,arg)]
                          [else (error 'select-intr/vector-set! "wtf?")])])
                   ;; should we check the type of the arg?
-                  `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))))]
+                  `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
+                    (movq (int 0) (var ,var))))]
                
                [else (error 'select-instructions "don't know how to handle this rhs~a")])) out-assignments))]
          ;; initialize
