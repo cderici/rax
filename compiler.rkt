@@ -18,11 +18,12 @@
          )
 
 
-;; R2 -> R2
+;; R3 -> R3
 (define uniquify
   (lambda (alist)
     (lambda (e)
       (match e
+        [`(void)      e]
         [(? integer?) e]
         [(? boolean?) e]
         [(? symbol?) (let ([idNewID (assv e alist)])
@@ -64,7 +65,6 @@
 
         [else `(,e)]))))
 
-
 (define (uncover-live-roots assignments current-lives out)
   (cond
     ((empty? assignments) (reverse out))
@@ -78,6 +78,7 @@
                                             ()) out))]
             [else (uncover-live-roots (cdr assignments) current-lives (cons (car assignments) out))]))))
 
+;; C2 -> C2
 (define uncover-call-live
   (lambda (e)
     (match e

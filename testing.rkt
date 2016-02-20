@@ -47,6 +47,10 @@
     (define r2c-tests
       (tests "Caner's R2 tests" typechecker passes interp-scheme "r2c" r2c-range))
 
+    (define r3-range (irange 1 2))
+    (define r3-tests
+      (tests "Ryan's R3 tests" typechecker passes interp-scheme "r3" r3-range))
+
     (define uniquify-range (irange 1 5))
     (define uniquify-tests
       (tests "uniquify" typechecker passes interp-scheme "uniquify" uniquify-range))
@@ -68,6 +72,7 @@
     (r1a-tests)
     (r2-tests)
     (r2c-tests)
+    (r3-tests)
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)

@@ -37,7 +37,7 @@
               (change-var newVar oldVar (cdr assignments)))]
        [else (error 'change-var (format "unhandled case : ~a" (car assignments)))])]))
 
-;; R3 -> C1
+;; R3 -> C2
 (define flatten
   (lambda (vars)
     (lambda (e)
@@ -47,8 +47,9 @@
            (let ([vars (getVars assignments)])
              `(program ,vars (type ,t) ,@assignments (return ,final-exp))))]
         ;; values
+        [`(void)      (values e '())]
         [(? boolean?) (values e '())]
-        [(? symbol?) (values e '())]
+        [(? symbol?)  (values e '())]
         [(? integer?) (values e '())]
         ;; let
         [`(let ([,x ,e]) ,body)

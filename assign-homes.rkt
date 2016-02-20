@@ -20,6 +20,7 @@
 (define dont-touch-reg-set (set `rsp `rbp `rax))
 (define touchable-reg-list (append (reverse (set->list caller-save)) (reverse (set->list callee-save))))
 
+;; x86* -> x86*
 (define (register-allocation num-of-registers)
   (lambda (x86*-prog)
     ((allocate-registers num-of-registers) (build-interference (uncover-live x86*-prog)))))

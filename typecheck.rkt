@@ -34,7 +34,7 @@
            [`Boolean
             (let ([t-ty ((typecheck env) t)]
                   [f-ty ((typecheck env) f)])
-              (if (eqv? t-ty f-ty)
+              (if (equal? t-ty f-ty)
                   t-ty
                   (type-error t-ty f-ty f expr)))]
            [actual-ty (type-error `Boolean actual-ty c expr)])]
@@ -43,7 +43,7 @@
          ; two booleans or two fixnums
          (let ([e1-ty ((typecheck env) e1)]
                [e2-ty ((typecheck env) e2)])
-           (if (eqv? e1-ty e2-ty)
+           (if (equal? e1-ty e2-ty)
                `Boolean
                (error (format (unlines `("Type error:"
                                          "\tExpected:\ttwo equal types"
@@ -68,7 +68,7 @@
               [`(Vector ,ty1 ,tys ...)
                (let ([new-val-ty ((typecheck env) new-val)]
                      [old-val-ty (list-ref (cons ty1 tys) ix)])
-                 (if (eq? old-val-ty new-val-ty)
+                 (if (equal? old-val-ty new-val-ty)
                      `Void
                      (type-error old-val-ty new-val-ty new-val expr)))]
               [actual-ty (type-error `(Vector ...) actual-ty vec-exp expr)])]
