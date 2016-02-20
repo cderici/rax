@@ -3,19 +3,19 @@
 (require (for-syntax racket))
 (provide debug-level debug verbose vomit
          map2 b2i i2b
-         fix while 
+         fix while
          label-name lookup  make-dispatcher assert
-         read-fixnum read-program 
+         read-fixnum read-program
 	 compile compile-file check-passes interp-tests compiler-tests
 	 make-graph add-edge adjacent vertices print-dot
 	 general-registers registers-for-alloc caller-save callee-save
 	 arg-registers register->color registers align
-         byte-reg->full-reg)
+         byte-reg->full-reg print-by-type)
 
 ;; debug state is a nonnegative integer.
 ;; The easiest way to increment it is passing the -d option
 ;; to run-tests.rkt
-;; 0 none 
+;; 0 none
 ;; 1 trace passes in run-test (-d)
 ;; 2 debug macros (-dd)
 ;; 3 verbose debugging (-ddd)
@@ -25,7 +25,7 @@
   (make-parameter
    0    ;; If you have to hard code me change 0 to 1-4
    (lambda (d)
-     (unless (exact-nonnegative-integer? d) 
+     (unless (exact-nonnegative-integer? d)
        (error 'debug-state "expected nonnegative-integer in ~a" d))
      d)))
 
@@ -76,14 +76,14 @@
 #|
 (define-syntax (trace stx)
   (syntax-case stx ()
-    [(_ label value ...) 
+    [(_ label value ...)
      #`(when (at-debug-level 1)
          #,(syntax/loc stx
              (print-label-and-values label value ...)))]))
 
 (define-syntax (debug stx)
   (syntax-case stx ()
-    [(_ label value ...) 
+    [(_ label value ...)
      #`(when (at-debug-level 2)
          #,(syntax/loc stx
              (print-label-and-values label value ...)))]))
@@ -140,7 +140,7 @@
 ;; The lookup function takes a key and an association list
 ;; and returns the corresponding value. It triggers an
 ;; error if the key is not present in the association list.
-;;   
+;;
 ;; The association list may be constructed of either
 ;; immutable or mutable pairs.
 ;;
@@ -211,7 +211,7 @@
 ;;
 ;; The typechecker is a function of exactly one argument that EITHER
 ;; raises an error using the (error) function when it encounters a
-;; type error, or returns #f when it encounters a type error. 
+;; type error, or returns #f when it encounters a type error.
 
 (define (check-passes name typechecker passes initial-interp)
   (lambda (test-name)
@@ -222,12 +222,12 @@
     (define sexp (read-program program-name))
     (debug "check passes:" sexp)
     (define type-error-expected (file-exists? (format "tests/~a.tyerr" test-name)))
-    (define tsexp (test-typecheck typechecker sexp))    
+    (define tsexp (test-typecheck typechecker sexp))
     (cond
      [(and type-error-expected tsexp)
       (error (format "expected type error in compiler '~a', but no error raised by typechecker" name))]
      [type-error-expected 'expected-type-error]
-     [tsexp 
+     [tsexp
       (let loop ([passes passes] [p tsexp]
                  [result (if (file-exists? input-file-name)
                              (with-input-from-file input-file-name
@@ -250,7 +250,7 @@
                                 ;; as this test bing current-input-port to that
                                 ;; file's input port so that the interpreters
                                 ;; can use it as test input.
-                                (if (file-exists? input-file-name) 
+                                (if (file-exists? input-file-name)
                                     (with-input-from-file input-file-name
                                       (lambda () (interp new-p)))
                                     (interp new-p))])
@@ -317,7 +317,7 @@
 ;; passes (ditto) a test family name (a string), and a list of test
 ;; numbers, and runs the compiler passes and the interpreters to check
 ;; whether the passes correct.
-;; 
+;;
 ;; This function assumes that the subdirectory "tests" has a bunch of
 ;; Scheme programs whose names all start with the family name,
 ;; followed by an underscore and then the test number, ending in
@@ -356,7 +356,7 @@
     (define type-error-expected (file-exists? (format "tests/~a.tyerr" test-name)))
     (define typechecks (compiler (format "tests/~a.rkt" test-name)))
     (if (and (not typechecks) (not type-error-expected))
-        (error (format "test ~a failed, unexpected type error" test-name)) 
+        (error (format "test ~a failed, unexpected type error" test-name))
         '())
     (if typechecks
         (if (system (format "gcc -g -std=c99 runtime.o tests/~a.s" test-name))
@@ -368,8 +368,8 @@
            [output (if (file-exists? (format "tests/~a.res" test-name))
                        (call-with-input-file
                          (format "tests/~a.res" test-name)
-                         (lambda (f) (string->number (read-line f))))
-                       42)]
+                         (lambda (f) (read-line f)))
+                       "42")]
            [progout (if typechecks (process (format "./a.out~a" input)) 'type-error)]
            )
       ;; process returns a list, it's first element is stdout
@@ -380,20 +380,19 @@
              (error (format "test ~a passed typechecking but should not have." test-name)) '())
          (control-fun 'wait)
          (cond [(eq? (control-fun 'status) 'done-ok)
-                (let ([result (string->number (read-line (car progout)))])
-                  (if (eq? result output)
+                (let ([result (read-line (car progout))])
+                  (if (eq? (string->symbol result) (string->symbol output))
                       (begin (display test-name)(display " ")(flush-output))
-                      (error (format "test ~a failed, output: ~a" 
-                                     test-name result))))]
+                      (error (format "test ~a failed, output: ~a, expected ~a"
+                                     test-name result output))))]
                [else
                 (error
-                 (format "test ~a error in x86 execution, exit code: ~a" 
+                 (format "test ~a error in x86 execution, exit code: ~a"
                          test-name (control-fun 'exit-code)))])
          (close-input-port in1)
          (close-input-port in2)
          (close-output-port out)])
       )))
-
 
 ;; Takes a function of 1 argument (or #f) and Racket expression, and
 ;; returns whether the expression is well-typed. If the first argument
@@ -403,10 +402,10 @@
 ;; (error) function when it encounters a type error, or that it
 ;; returns #f when it encounters a type error. This function then
 ;; returns whether a type error was encountered.
-(define test-typecheck 
+(define test-typecheck
   (lambda (tcer exp)
     (if (eq? tcer #f) exp
-        (let ([res 
+        (let ([res
                (with-handlers ([exn:fail?
                                 (lambda (e) #f)])
                  (tcer exp))])
@@ -437,10 +436,10 @@
 
 ;; there are 13 general registers:
 (define general-registers (vector 'rbx 'rcx 'rdx 'rsi 'rdi
-    				  'r8 'r9 'r10 'r11 'r12 
+    				  'r8 'r9 'r10 'r11 'r12
 				  'r13 'r14 'r15))
 
-;; registers-for-alloc should always inlcude the arg-registers. -Jeremy 
+;; registers-for-alloc should always inlcude the arg-registers. -Jeremy
 (define registers-for-alloc general-registers)
 
 (define byte-register-table
@@ -475,6 +474,32 @@
 	[else
 	 (+ n (- alignment (modulo n alignment)))]))
 
+; Produces a string containing x86 instructions that print whatever is
+; currently in %rax. Will clobber the contents of (potentially)
+; r12-r15, so this should only be used at the end of a program (and
+; before moving 0 to rax).  Note that the "[depth 12]" part here is an
+; optional argument, which is used internally.  Call this function
+; with a single argument, like (print-by-type '(Vector Integer
+; Boolean)).  If you try to print nested vectors that are more than 4
+; levels deep, the 5th vector will be printed as #(...).
+(define (print-by-type ty [depth 12])
+  (define (mov-and-print depth)
+    (lambda (ty index)
+      (format "\tmovq\t~a(%r~a), %rax\n~a" (* 8 (+ 1 index)) depth (print-by-type ty (+ 1 depth)))))
+  (match ty
+    ['Void (format "\tcallq\t~a\n" (label-name "print_void"))]
+    ['Integer
+     (format "\tmovq\t%rax, %rdi\n\tcallq\t~a\n" (label-name "print_int"))]
+    ['Boolean
+     (format "\tmovq\t%rax, %rdi\n\tcallq\t~a\n" (label-name "print_bool"))]
+    [`(Vector ,tys ...)
+     (if (> depth 15)
+         (format "\tmovq\t%rax, %rdi\n\tcallq\t~a\n" (label-name "print_ellipsis"))
+         (string-join (map (mov-and-print depth) tys (range (length tys)))
+                      (format "\tcallq\t~a\n" (label-name "print_space"))
+                      #:before-first (format "\tmovq\t%rax, %r~a\n\tcallq\t~a\n" depth (label-name "print_vecbegin"))
+                      #:after-last (format "\tcallq\t~a\n" (label-name "print_vecend"))))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph ADT
 
@@ -496,15 +521,15 @@
       (call-with-output-file file-name #:exists 'replace
 	(lambda (out-file)
 	  (write-string "strict graph {" out-file) (newline out-file)
-	  
+
 	  (for ([v (vertices graph)])
 	       (write-string (format "~a;\n" v) out-file))
-	  
+
 	  (for ([v (vertices graph)])
 	       (for ([u (adjacent graph v)])
 		    (write-string (format "~a -- ~a;\n" u v) out-file)))
-	  
+
 	  (write-string "}" out-file)
 	  (newline out-file)))
       '()))
-      
+

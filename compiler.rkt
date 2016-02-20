@@ -54,7 +54,7 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-        
+
         [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
          (let* ([var-types (uncover-types e)]
                 [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))]
@@ -85,7 +85,7 @@
        (let ([vars-without-types (map car var-types)]
              [new-assignments (uncover-live-roots assignments '() '())])
        `(program ,vars-without-types (type ,t) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
-       
+
 
 
 ; x86_1* (with if-statments) -> x86_1* (without if-statements)
@@ -139,21 +139,11 @@
                   "\n"
                   ;; Conclusion
                   ,(display-instr "movq" "%rax, %rdi")
-                  ,(display-instr "callq" (print-returned-value t))
+                  ,(print-by-type t)
                   ,(restore-callee-regs instrs i wcsr)
                   ,(display-instr "movq" "$0, %rax") ; Make sure the exit code is 0!
                   ,(display-instr "popq" "%rbp")
                   ,(display-instr "retq" ""))))])))
-
-(define print-returned-value
-  (lambda (ty)
-    (symbol->string
-     (match ty
-       [`Integer     (label `print_int)]
-       [`Boolean     (label `print_bool)]
-       [`(Vector ,_) (label `print_vector)] ; TODO: This probably isn't right
-       [`Void        (label `print_void)]
-       [_            (error (format "Don't know how to print value of type ~a" ty))]))))
 
 (define save-callee-regs
   (λ (instrs i wcsr)
@@ -203,7 +193,7 @@
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (format "~a(%rbp)" (+ n s))] ;; keeping this separate cause I'm not sure if I'm doing the right thing
-                 
+
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
       [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
