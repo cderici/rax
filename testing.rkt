@@ -21,7 +21,7 @@
 (define tests
   (lambda (caption tc passes interp name range)
     (lambda ()
-      (interp-tests caption tc passes interp name range)
+      ;(interp-tests caption tc passes interp name range)
       (compiler-tests caption tc passes name range))))
 
 (define all-tests
@@ -47,7 +47,7 @@
     (define r2c-tests
       (tests "Caner's R2 tests" typechecker passes interp-scheme "r2c" r2c-range))
 
-    (define r3-range (irange 1 2))
+    (define r3-range (irange 1 3))
     (define r3-tests
       (tests "Ryan's R3 tests" typechecker passes interp-scheme "r3" r3-range))
 
@@ -67,14 +67,18 @@
     (define torture-tests
       (tests "torture" typechecker passes interp-scheme "torture" torture-range))
 
+    #|
     (r0-tests)
     (r1-tests)
     (r1a-tests)
     (r2-tests)
     (r2c-tests)
+    |#
     (r3-tests)
+    #|
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)
+    |#
     ;(torture-tests)
     (display "all tests passed!") (newline)))

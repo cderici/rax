@@ -390,6 +390,7 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
       ; iterator_ptr < free_ptr
       ; iterator_ptr += sizeof(int64_t *)
       ) {
+    printf("Step 1\n");
     const int64_t tag          = iterator_ptr[0];
     const int     vector_len   = get_length(tag);
     const int64_t ptr_bitfield = get_ptr_bitfield(tag);
@@ -397,7 +398,8 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
     for (int i = 0; i < vector_len; ++i) {
       // If the child is a pointer (and not an integer)
       if (rgscott_test_bit(ptr_bitfield, i)) {
-	    int64_t *vector_ptr_loc = (int64_t *)(iterator_ptr[1 + i]);
+	    printf("Step 2\n");
+        int64_t *vector_ptr_loc = (int64_t *)(iterator_ptr[1 + i]);
         copy_vector(&vector_ptr_loc);
       }
     }
@@ -470,6 +472,7 @@ void rgscott_copy_vector(int64_t **vector_ptr_loc) {
 
     // Copy over the data (including the tag!)
     for (int i = 0; i <= vector_length; ++i) {
+      printf("Step 3\n");
       new_vector[i] = *vector_ptr_loc[i];
     }
 

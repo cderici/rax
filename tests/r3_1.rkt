@@ -1,1 +1,2 @@
-(vector-set! (vector 0) 0 42)
+(let ([_ (vector 1 2 3 4)])
+  42)
