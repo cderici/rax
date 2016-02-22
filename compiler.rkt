@@ -128,7 +128,7 @@
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
   (match-lambda
-    [`(program ,i (type ,t) ,instrs ...)
+    [(and wat `(program ,i (type ,t) ,instrs ...))
      (let ([wcsr (written-callee-save-regs instrs)])
        (foldr string-append ""
               `(,(format "\t.globl ~a\n" (label `main))
