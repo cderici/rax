@@ -114,13 +114,24 @@
        (cmpq ,arg1 (reg rax)))]
     [`(movq (reg ,r) (reg ,r)) ; Kill redundant moves
      `()]
-    [`(,op (stack ,n1) (stack ,n2)) ; Both arguments can't be memory locations
-     `((movq (stack ,n1) (reg rax))
-       (,op  (reg rax)   (stack ,n2)))]
-    [`(,movq ,(and arg1 `(,(or `global-value `stack) ,n1)) (offset ,n2 ,o))
+    [`(,op ,(and arg1 `(,(or `global-value `stack) ,n1)) (stack ,n2)) ; Both arguments can't be memory locations
+     `((movq ,arg1 (reg rax))
+       (,op  (reg rax) (stack ,n2)))]
+    [`(,op ,(and arg1 `(,(or `global-value `stack) ,n1)) (offset ,n2 ,o))
      `((pushq ,arg1)
-       (movq ,n2 (reg rax))
-       (popq (offset (reg rax) 8)))]
+       (,op ,n2 (reg rax))
+       (popq (offset (reg rax) ,o)))]
+    [`(,op (stack ,n1) ,(and arg2 `(,(or `global-value `stack) ,n2)))
+     `((movq (stack ,n1) (reg rax))
+       (,op  (reg rax)   ,arg2))]
+    [`(,op (offset ,n1 ,o) ,(and arg2 `(,(or `global-value `stack) ,n2)))
+     `((pushq ,arg2)
+       (,op ,n1 (reg rax))
+       (popq (offset (reg rax) ,o)))]
+    #; [`(movzbq ,arg1 ,(and arg2 (or `(stack ,_) `(offset ,_ ,_)))) ; movzbq doesn't like offsets
+        `((pushq ,arg2)
+          (movzbq ,arg1 (reg rax))
+          (popq (reg rax)))]
     [`(program ,i (type ,t) ,instrs ...)
      `(program ,i (type ,t) ,@(append-map patch-instr instrs))]
     [x86-e `(,x86-e)]))
@@ -128,7 +139,7 @@
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
   (match-lambda
-    [(and wat `(program ,i (type ,t) ,instrs ...))
+    [`(program ,i (type ,t) ,instrs ...)
      (let ([wcsr (written-callee-save-regs instrs)])
        (foldr string-append ""
               `(,(format "\t.globl ~a\n" (label `main))
