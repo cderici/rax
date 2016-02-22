@@ -110,6 +110,7 @@
     [`(,(or `addq `subq) ,arg1 ,arg2)
      (set-union (variable arg1)
                 (variable arg2))]
+    [`(movq ,arg1 (offset (var ,var) ,n)) (set-union (variable arg1) (set var))]
     [`(,movq ,arg1 ,_) (variable arg1)]
     [_                 (set)]))
 
