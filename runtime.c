@@ -383,14 +383,13 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
 
   // Copy over the first vector. Now iterator_ptr points to that vector in tospace,
   // and free_ptr points to the next available memory chunk in tospace.
-  rgscott_copy_vector((int64_t **)(rootstack_ptr[0]));
+  rgscott_copy_vector(rootstack_ptr);
 
   // Keep copying subsequent vectors until you catch up to the free_ptr.
   for ( int64_t *iterator_ptr = queue_start
       ; iterator_ptr < free_ptr
       ; iterator_ptr += sizeof(int64_t *)
       ) {
-    printf("Step 1\n");
     const int64_t tag          = iterator_ptr[0];
     const int     vector_len   = get_length(tag);
     const int64_t ptr_bitfield = get_ptr_bitfield(tag);
@@ -398,12 +397,20 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
     for (int i = 0; i < vector_len; ++i) {
       // If the child is a pointer (and not an integer)
       if (rgscott_test_bit(ptr_bitfield, i)) {
-	    printf("Step 2\n");
         int64_t *vector_ptr_loc = (int64_t *)(iterator_ptr[1 + i]);
-        copy_vector(&vector_ptr_loc);
+        rgscott_copy_vector(&vector_ptr_loc);
       }
     }
   }
+
+  // Swap fromspace and tospace
+  int64_t *temp_begin = fromspace_begin;
+  fromspace_begin = tospace_begin;
+  tospace_begin   = temp_begin;
+
+  int64_t *temp_end = fromspace_end;
+  fromspace_end = tospace_end;
+  tospace_end   = temp_end;
 }
 
 /*
@@ -457,29 +464,30 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
 
 */
 void rgscott_copy_vector(int64_t **vector_ptr_loc) {
-  const int64_t tag = *vector_ptr_loc[0];
+  if (*vector_ptr_loc) {
+    const int64_t tag = *vector_ptr_loc[0];
 
-  if (is_forwarding(tag)) {
-    // Update location of pointer to point to new data
-    *vector_ptr_loc = (int64_t *) tag;
-  } else {
-    const int vector_length = get_length(tag);
+    if (is_forwarding(tag)) {
+      // Update location of pointer to point to new data
+      *vector_ptr_loc = (int64_t *) tag;
+    } else {
+      const int vector_length = get_length(tag);
 
-    // Advance the free_ptr, then
-    const long new_bytes = sizeof(int64_t) * (vector_length + 1);
-    int64_t *new_vector = free_ptr;
-    free_ptr += new_bytes;
+      // Advance the free_ptr, then
+      const long new_bytes = sizeof(int64_t) * (vector_length + 1);
+      int64_t *new_vector = free_ptr;
+      free_ptr += new_bytes;
 
-    // Copy over the data (including the tag!)
-    for (int i = 0; i <= vector_length; ++i) {
-      printf("Step 3\n");
-      new_vector[i] = *vector_ptr_loc[i];
+      // Copy over the data (including the tag!)
+      for (int i = 0; i <= vector_length; ++i) {
+        new_vector[i] = *vector_ptr_loc[i];
+      }
+
+      // Change tags of both (1) the old pointer, and (2) the old pointer's location
+      // to be forwarding pointer to new data
+      *(int64_t **)(*vector_ptr_loc) = new_vector;
+      *vector_ptr_loc                = new_vector;
     }
-
-    // Change tags of both (1) the old pointer, and (2) the old pointer's location
-    // to be forwarding pointer to new data
-    *(int64_t **)(*vector_ptr_loc) = new_vector;
-    *vector_ptr_loc                = new_vector;
   }
 }
 
