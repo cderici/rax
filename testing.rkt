@@ -47,9 +47,14 @@
     (define r2c-tests
       (tests "Caner's R2 tests" typechecker passes interp-scheme "r2c" r2c-range))
 
-    (define r3-range (irange 1 3))
+    (define r3-range (irange 1 15))
     (define r3-tests
-      (tests "Ryan's R3 tests" typechecker passes interp-scheme "r3" r3-range))
+      (tests "Jeremy's tests 5: I can't think of a creative subtitle"
+             typechecker passes interp-scheme "r3" r3-range))
+
+    (define r3c-range (irange 1 2))
+    (define r3c-tests
+      (tests "Ryan's R3 tests" typechecker passes interp-scheme "r3c" r3c-range))
 
     (define uniquify-range (irange 1 5))
     (define uniquify-tests
@@ -73,8 +78,9 @@
     (r1a-tests)
     (r2-tests)
     (r2c-tests)
-    |#
     (r3-tests)
+    |#
+    (r3c-tests)
     #|
     (uniquify-tests)
     (flatten-tests)

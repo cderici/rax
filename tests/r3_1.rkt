@@ -1,2 +1,2 @@
-(let ([_ (vector 1 2 3 4)])
+(let ([v (vector 1 2)])
   42)

@@ -1,5 +1,2 @@
-(let ([v (vector 1 #f (vector-set! (vector 0) 0 42) (vector 1))])
-  (let ([_ (vector-set! v 0 21)])
-    (let ([_ (vector-set! v 1 #t)])
-      (let ([_ (vector-set! v 2 (vector-set! v 3 (vector 21)))])
-        (+ (vector-ref v 0) (vector-ref (vector-ref v 3) 0))))))
+(let ([v (vector 20 22)])
+  (+ (vector-ref v 0) (vector-ref v 1)))
