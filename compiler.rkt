@@ -55,14 +55,14 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-
+        
         [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
          (let* ([var-types (uncover-types e)]
                 [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))]
                 [new-vars (getVars new-assignments)]
                 [new-var-types (uncover-types `(program ,new-vars (type ,t) ,@new-assignments (return ,final-e)))])
            `(program ,new-var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,@new-assignments (return ,final-e)))]
-
+        
         [else `(,e)]))))
 
 (define (uncover-live-roots assignments current-lives out)
@@ -85,7 +85,7 @@
       [`(program ,var-types (type ,t) (initialize ,s ,h) ,assignments ... (return ,final-e))
        (let ([vars-without-types (map car var-types)]
              [new-assignments (uncover-live-roots assignments '() '())])
-       `(program ,vars-without-types (type ,t) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
+         `(program ,vars-without-types (type ,t) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
 
 
 
@@ -117,34 +117,37 @@
     [`(,op (stack ,n1) (stack ,n2)) ; Both arguments can't be memory locations
      `((movq (stack ,n1) (reg rax))
        (,op  (reg rax)   (stack ,n2)))]
+    [`(,movq ,(and arg1 `(,(or `global-value `stack) ,n1)) (offset ,n2 ,o))
+     `((pushq ,arg1)
+       (movq ,n2 (reg rax))
+       (popq (offset (reg rax) 8)))]
     [`(program ,i (type ,t) ,instrs ...)
      `(program ,i (type ,t) ,@(append-map patch-instr instrs))]
     [x86-e `(,x86-e)]))
 
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
-  (lambda (x86-e)
-    (match x86-e
-      [`(program ,i (type ,t) ,instrs ...)
-       (let ([wcsr (written-callee-save-regs instrs)])
-         (foldr string-append ""
-                `(,(format "\t.globl ~a\n" (label `main))
-                  ,(symbol->string (label `main))
-                  ":\n"
-                  ;; Prelude
-                  ,(display-instr "pushq" "%rbp")
-                  ,(display-instr "movq" "%rsp, %rbp")
-                  ,(save-callee-regs instrs i wcsr)
-                  "\n"
-                  ,(foldr string-append "" (map print-x86-64-instr instrs))
-                  "\n"
-                  ;; Conclusion
-                  ,(display-instr "movq" "%rax, %rdi")
-                  ,(print-by-type t)
-                  ,(restore-callee-regs instrs i wcsr)
-                  ,(display-instr "movq" "$0, %rax") ; Make sure the exit code is 0!
-                  ,(display-instr "popq" "%rbp")
-                  ,(display-instr "retq" ""))))])))
+  (match-lambda
+    [`(program ,i (type ,t) ,instrs ...)
+     (let ([wcsr (written-callee-save-regs instrs)])
+       (foldr string-append ""
+              `(,(format "\t.globl ~a\n" (label `main))
+                ,(symbol->string (label `main))
+                ":\n"
+                ;; Prelude
+                ,(display-instr "pushq" "%rbp")
+                ,(display-instr "movq" "%rsp, %rbp")
+                ,(save-callee-regs instrs i wcsr)
+                "\n"
+                ,(foldr string-append "" (map print-x86-64-instr instrs))
+                "\n"
+                ;; Conclusion
+                ,(display-instr "movq" "%rax, %rdi")
+                ,(print-by-type t)
+                ,(restore-callee-regs instrs i wcsr)
+                ,(display-instr "movq" "$0, %rax") ; Make sure the exit code is 0!
+                ,(display-instr "popq" "%rbp")
+                ,(display-instr "retq" ""))))]))
 
 (define save-callee-regs
   (λ (instrs i wcsr)
@@ -194,7 +197,7 @@
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (format "~a(%rbp)" (+ n s))] ;; keeping this separate cause I'm not sure if I'm doing the right thing
-
+      
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
       [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
