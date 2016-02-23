@@ -18,7 +18,7 @@
  (rename-out [assign-homes-old assign-homes]))
 
 (define dont-touch-reg-set (set `rsp `rbp `rax))
-(define touchable-reg-list (append (reverse (set->list caller-save)) (reverse (set->list callee-save))))
+(define touchable-reg-list (remv 'r11 (append (reverse (set->list caller-save)) (reverse (set->list callee-save)))))
 
 ;; x86* -> x86*
 (define (register-allocation num-of-registers)
