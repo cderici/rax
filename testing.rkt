@@ -77,12 +77,10 @@
     (r1a-tests)
     (r2-tests)
     (r2c-tests)
-    ;(r3-tests)
+    (r3-tests)
     (r3c-tests)
-    #|
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)
-    |#
-    ;(torture-tests)
+    (torture-tests)
     (display "all tests passed!") (newline)))
