@@ -17,8 +17,11 @@
  register-allocation
  (rename-out [assign-homes-old assign-homes]))
 
+(define our-caller-save (set-remove caller-save 'r11))
+(define our-callee-save callee-save)
+
 (define dont-touch-reg-set (set `rsp `rbp `rax))
-(define touchable-reg-list (remv 'r11 (append (reverse (set->list caller-save)) (reverse (set->list callee-save)))))
+(define touchable-reg-list (append (reverse (set->list our-caller-save)) (reverse (set->list our-callee-save))))
 
 ;; x86* -> x86*
 (define (register-allocation num-of-registers)
@@ -195,7 +198,7 @@
                (add-edge gr^ r v)
                gr^))
            gr
-           caller-save))
+           our-caller-save))
         graph
         live-after-set)])))
 
@@ -428,7 +431,7 @@
 (define written-callee-save-regs
   (λ (instrs)
     (remove-duplicates
-     (filter (curry set-member? callee-save)
+     (filter (curry set-member? our-callee-save)
              (map written-reg
                   (filter written-reg instrs))))))
 
