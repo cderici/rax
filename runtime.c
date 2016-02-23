@@ -385,7 +385,7 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
   for (unsigned int i = 0; rootstack_begin + i < rootstack_ptr; ++i) {
     // Copy over the first vectors. Now queue points to the first vector in tospace,
     // and free_ptr points to the next available memory chunk in tospace.
-    rgscott_copy_vector(&(rootstack_begin[i]));
+    rgscott_copy_vector(rootstack_begin + i);
   }
 
   // Keep copying subsequent vectors until you catch up to the free_ptr.
@@ -397,8 +397,7 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
     for (int i = 0; i < vector_len; ++i) {
       // If the child is a pointer (and not an integer)
       if (rgscott_test_bit(ptr_bitfield, i)) {
-        int64_t *vector_ptr_loc = (int64_t *)(queue[1 + i]);
-        rgscott_copy_vector(&vector_ptr_loc);
+        rgscott_copy_vector((int64_t **) (queue + (i + 1)));
       }
     }
 
