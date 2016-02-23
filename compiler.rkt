@@ -69,7 +69,7 @@
   (cond
     ((empty? assignments) (reverse out))
     (else (match (car assignments)
-            [`(assign ,var (allocate ,n (Vector ,some-type)))
+            [`(assign ,var (allocate ,n (Vector ,some-type ...)))
              (uncover-live-roots (cdr assignments) (cons var current-lives) (cons (car assignments) out))]
             [`(if (collection-needed? ,n) ((collect ,n)) ())
              (uncover-live-roots (cdr assignments) current-lives
@@ -248,7 +248,7 @@
 (define r3-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 128 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
