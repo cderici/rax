@@ -379,28 +379,30 @@ void print_ellipsis() {
 void rgscott_cheney(int64_t **rootstack_ptr) {
   // Reset free pointer to be beginning of tospace
   free_ptr = tospace_begin;
-  int64_t *queue_start = free_ptr;
+  int64_t *queue = free_ptr;
 
-  // Copy over the first vector. Now iterator_ptr points to that vector in tospace,
-  // and free_ptr points to the next available memory chunk in tospace.
-  rgscott_copy_vector(rootstack_ptr);
+
+  for (unsigned int i = 0; rootstack_begin + i < rootstack_ptr; ++i) {
+    // Copy over the first vectors. Now queue points to the first vector in tospace,
+    // and free_ptr points to the next available memory chunk in tospace.
+    rgscott_copy_vector(&(rootstack_begin[i]));
+  }
 
   // Keep copying subsequent vectors until you catch up to the free_ptr.
-  for ( int64_t *iterator_ptr = queue_start
-      ; iterator_ptr < free_ptr
-      ; iterator_ptr += sizeof(int64_t *)
-      ) {
-    const int64_t tag          = iterator_ptr[0];
+  while (queue < free_ptr) {
+    const int64_t tag          = queue[0];
     const int     vector_len   = get_length(tag);
     const int64_t ptr_bitfield = get_ptr_bitfield(tag);
 
     for (int i = 0; i < vector_len; ++i) {
       // If the child is a pointer (and not an integer)
       if (rgscott_test_bit(ptr_bitfield, i)) {
-        int64_t *vector_ptr_loc = (int64_t *)(iterator_ptr[1 + i]);
+        int64_t *vector_ptr_loc = (int64_t *)(queue[1 + i]);
         rgscott_copy_vector(&vector_ptr_loc);
       }
     }
+
+    queue += vector_len + 1;
   }
 
   // Swap fromspace and tospace
@@ -474,7 +476,7 @@ void rgscott_copy_vector(int64_t **vector_ptr_loc) {
       const int vector_length = get_length(tag);
 
       // Advance the free_ptr, then
-      const long new_bytes = sizeof(int64_t) * (vector_length + 1);
+      const int new_bytes = vector_length + 1;
       int64_t *new_vector = free_ptr;
       free_ptr += new_bytes;
 
