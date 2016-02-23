@@ -72,14 +72,12 @@
     (define torture-tests
       (tests "torture" typechecker passes interp-scheme "torture" torture-range))
 
-    #|
     (r0-tests)
     (r1-tests)
     (r1a-tests)
     (r2-tests)
     (r2c-tests)
-    (r3-tests)
-    |#
+    ;(r3-tests)
     (r3c-tests)
     #|
     (uniquify-tests)

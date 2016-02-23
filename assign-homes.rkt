@@ -140,7 +140,7 @@
 ; Arg -> (Int | Symbol) [not-particularly well-typed]
 (define arg-payload
   (match-lambda
-    [`(offset (var ,payload) ,_) payload]
+    [`(offset (,(or `var `reg) ,payload) ,_) payload]
     [`(,_ ,payload) payload]))
 
 ; x86* -> x86*

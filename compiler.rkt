@@ -114,9 +114,11 @@
        (cmpq ,arg1 (reg rax)))]
     [`(movq (reg ,r) (reg ,r)) ; Kill redundant moves
      `()]
-    [`(,op ,(and arg1 `(stack ,n1)) (stack ,n2)) ; Both arguments can't be memory locations
+    [`(,op ,(and arg1 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_)))
+           ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
+     ; Both arguments can't be memory locations
      `((movq ,arg1 (reg rax))
-       (,op  (reg rax) (stack ,n2)))]
+       (,op  (reg rax) ,arg2))]
     [`(program ,i (type ,t) ,instrs ...)
      `(program ,i (type ,t) ,@(append-map patch-instr instrs))]
     [x86-e `(,x86-e)]))

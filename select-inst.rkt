@@ -75,10 +75,12 @@
                    
                    `((movq (global-value free_ptr) (var ,var))
                      (addq (int ,(* 8 (+ len 1))) (global-value free_ptr))
-                     (movq (int ,tag) (offset (var ,var) 0))))]
+                     (movq (var ,var) (reg r11))
+                     (movq (int ,tag) (offset (reg r11) 0))))]
                 ;; vector-ref
                 [`(vector-ref ,vec ,n)  ;; ASSUMPTION: vec is always var
-                 `((movq (offset (var ,vec) ,(* 8 (+ n 1))) (var ,var)))]
+                 `((movq (var ,vec) (reg r11))
+                   (movq (offset (reg r11) ,(* 8 (+ n 1))) (var ,var)))]
                 ;; vector-set!
                 [`(vector-set! ,vec ,n ,arg)
                  (let ([arg-exp
@@ -89,7 +91,8 @@
                           [(? symbol?) `(var ,arg)]
                           [else (error 'select-intr/vector-set! "wtf?")])])
                    ;; should we check the type of the arg?
-                   `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
+                   `((movq (var ,vec) (reg r11))
+                     (movq ,arg-exp (offset (reg r11) ,(* 8 (+ n 1))))
                      (movq (int 0) (var ,var))))]
                 
                 [else (error 'select-instructions "don't know how to handle this rhs~a")]) new-assignments)
