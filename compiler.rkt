@@ -7,6 +7,7 @@
 (provide r1-passes
          r2-passes
          r3-passes
+         r4-passes
          uniquify
          flatten
          select-instructions
@@ -36,6 +37,36 @@
         [`(,op ,es ...) `(,op ,@(map (uniquify alist) es))]))))
 
 (define void-count -1)
+
+;; R4 -> R4
+(define reveal-functions
+  (lambda (locals)
+    (match-lambda
+      [(and f (? symbol?)) (if (set-member? locals f)
+                               f
+                               `(function-ref ,f))]
+      [`(let ([,x ,e]) ,body)
+       `(let ([,x ,((reveal-functions locals) e)])
+          ,((reveal-functions (set-add x locals)) body))]
+      [`(if ,cnd ,thn ,els)
+       `(if ,((reveal-functions locals) cnd)
+            ,((reveal-functions locals) thn)
+            ,((reveal-functions locals) els))]
+      [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
+       `(define ,args : ,ty-ret
+          ,((reveal-functions (set-union (list->set arg1) locals)) body))]
+      [`(program (type ,t) ,defines ... ,body)
+       `(program (type ,t)
+                 ,@(map (reveal-functions locals) defines)
+                 ,((reveal-functions locals) body))]
+      [(list op args ...)
+       #:when (memv op `(void read and + - not if eq?
+                              vector vector-ref vector-set!))
+       `(,op ,@(map (reveal-functions locals) args))]
+      [(list rator rands ...)
+       `(app ,((reveal-functions locals) rator)
+             ,@(map (reveal-functions locals) rands))]
+      [e e])))
 
 ;; C2 -> C2
 ;; expose-allocation (after flatten)
@@ -247,6 +278,7 @@
 ; [Pass]
 (define r3-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
+                    ;("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
                     ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
@@ -255,3 +287,6 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
+
+; [Pass]
+(define r4-passes r3-passes)
