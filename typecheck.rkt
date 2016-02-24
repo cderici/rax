@@ -75,7 +75,37 @@
            [actual-ty (type-error `Integer actual-ty ix expr)])]
         [`(program ,body)
          `(program (type ,((typecheck `()) body))
-                   ,body)]))))
+                   ,body)]
+        [`(program ,defs ... ,body)
+         `(program (type ,((typecheck (map extract-define-type defs)) body))
+                   ,defs
+                   ,body)]
+        [`(,exp-rator ,exp-rands ...)
+         (let ([ty-rator  ((typecheck env) exp-rator)]
+               [tys-rands (map (typecheck env) exp-rands)])
+           (match ty-rator
+             [(list tys-rator-args ... -> ty-rator-ret)
+              (if (equal? tys-rator-args tys-rands)
+                  ty-rator-ret
+                  (type-error-fun-args exp-rator
+                                       `(,@tys-rator-args -> ,ty-rator-ret)
+                                       tys-rands
+                                       expr))]
+             [actual-ty (type-error `(,@tys-rands -> ...)
+                                    actual-ty
+                                    exp-rator
+                                    expr)]))]))))
+
+
+; (define ...) -> Pair Name Type
+(define extract-define-type
+  (match-lambda
+    [`(define ,(list fun `[,arg1 : ,ty1] ...) : ,ty-ret ,body)
+     (cons fun `(,@ty1 -> ,ty-ret))]))
+
+(define num-fun-arg-types
+  (match-lambda
+    [(list ty1 ... -> ty-ret) (length ty1)]))
 
 (define tc-unary-expr
   (λ (arg-ty res-ty e env expr)
@@ -100,6 +130,14 @@
                               "In the subexpression:\t~a"
                               "In the expression:\t~a"))
                    expected-ty actual-ty subexpr expr))))
+
+(define type-error-fun-args
+  (λ (fun fun-ty actual-tys expr)
+    (error (format (unlines `("Type error:"
+                              "\tThe function `~a` is applied to the types ~a"
+                              "\tBut the type of `~a` is ~a"
+                              "In the expression:\t~a"))
+                   fun actual-tys fun fun-ty expr))))
 
 (define unlines
   (λ (ls)
