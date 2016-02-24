@@ -55,6 +55,9 @@
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        `(define ,args : ,ty-ret
           ,((reveal-functions (set-union (list->set arg1) locals)) body))]
+      [`(program ,defines ... ,body) ; for debugging purposes
+       `(program ,@(map (reveal-functions locals) defines)
+                 ,((reveal-functions locals) body))]
       [`(program (type ,t) ,defines ... ,body)
        `(program (type ,t)
                  ,@(map (reveal-functions locals) defines)
@@ -88,14 +91,14 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-
+        
         [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
          (let* ([var-types (uncover-types e)]
                 [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))]
                 [new-vars (getVars new-assignments)]
                 [new-var-types (uncover-types `(program ,new-vars (type ,t) ,@new-assignments (return ,final-e)))])
            `(program ,new-var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,@new-assignments (return ,final-e)))]
-
+        
         [else `(,e)]))))
 
 (define (uncover-live-roots assignments current-lives out)
@@ -231,7 +234,7 @@
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (format "~a(%rbp)" (+ n s))] ;; keeping this separate cause I'm not sure if I'm doing the right thing
-
+      
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
       [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
@@ -280,7 +283,6 @@
 ; [Pass]
 (define r3-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ;("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("flatten" ,(flatten '()) ,interp-C)
                     ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
@@ -291,4 +293,14 @@
                     ("print x86" ,print-x86-64 #f)))
 
 ; [Pass]
-(define r4-passes r3-passes)
+(define r4-passes `(; Implicit typecheck pass occurs at beginning
+                    ("uniquify" ,(uniquify '()) ,interp-scheme)
+                    ;("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
+                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
+                    ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
+                    ("select instructions" ,select-instructions ,interp-x86)
+                    ("register-allocation" ,(register-allocation 5) ,interp-x86)
+                    ("lower-conditionals" ,lower-conditionals ,interp-x86)
+                    ("patch instructions" ,patch-instr ,interp-x86)
+                    ("print x86" ,print-x86-64 #f)))
