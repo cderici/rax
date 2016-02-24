@@ -60,13 +60,15 @@
                  ,@(map (reveal-functions locals) defines)
                  ,((reveal-functions locals) body))]
       [(list op args ...)
-       #:when (memv op `(void read and + - not if eq?
-                              vector vector-ref vector-set!))
+       #:when (set-member? prim-names op)
        `(,op ,@(map (reveal-functions locals) args))]
       [(list rator rands ...)
        `(app ,((reveal-functions locals) rator)
              ,@(map (reveal-functions locals) rands))]
       [e e])))
+
+(define prim-names (set `void `read `and `+ `- `not `if `eq?
+                        `vector `vector-ref `vector-set!))
 
 ;; C2 -> C2
 ;; expose-allocation (after flatten)
