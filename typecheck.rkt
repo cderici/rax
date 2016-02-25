@@ -73,9 +73,6 @@
                      (type-error old-val-ty new-val-ty new-val expr)))]
               [actual-ty (type-error `(Vector ...) actual-ty vec-exp expr)])]
            [actual-ty (type-error `Integer actual-ty ix expr)])]
-        [`(program ,body)
-         `(program (type ,((typecheck `()) body))
-                   ,body)]
         [`(program ,defs ... ,body)
          `(program (type ,((typecheck (map extract-define-type defs)) body))
                    ,@defs

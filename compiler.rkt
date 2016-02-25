@@ -18,6 +18,8 @@
          typechecker
          )
 
+(define prim-names (set `void `read `and `+ `- `not `if `eq?
+                        `vector `vector-ref `vector-set!))
 
 ;; R3 -> R3
 (define uniquify
@@ -33,8 +35,17 @@
                            (cdr idNewID)))]
         [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
-        [`(program (type ,t) ,e) `(program (type ,t) ,((uniquify alist) e))]
-        [`(,op ,es ...) `(,op ,@(map (uniquify alist) es))]))))
+        #|[`(define ,(list fun `[,args : ,tys] ...) : ,ty-ret ,body)
+         (let ([new-args (map gensym
+         `(define ,args : ,ty-ret
+            ,((uniquify alist) body))] |#
+        [`(program (type ,t) ,defines ... ,e)
+         `(program (type ,t)
+                   ,@(map (uniquify alist) defines)
+                   ,((uniquify alist) e))]
+        [`(,op ,es ...)
+         #:when (set-member? prim-names op)
+         `(,op ,@(map (uniquify alist) es))]))))
 
 (define void-count -1)
 
@@ -55,12 +66,12 @@
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        `(define ,args : ,ty-ret
           ,((reveal-functions (set-union (list->set arg1) locals)) body))]
-      [`(program ,defines ... ,body) ; for debugging purposes
-       `(program ,@(map (reveal-functions locals) defines)
-                 ,((reveal-functions locals) body))]
       [`(program (type ,t) ,defines ... ,body)
        `(program (type ,t)
                  ,@(map (reveal-functions locals) defines)
+                 ,((reveal-functions locals) body))]
+      [`(program ,defines ... ,body) ; for debugging purposes
+       `(program ,@(map (reveal-functions locals) defines)
                  ,((reveal-functions locals) body))]
       [(list op args ...)
        #:when (set-member? prim-names op)
@@ -69,9 +80,6 @@
        `(app ,((reveal-functions locals) rator)
              ,@(map (reveal-functions locals) rands))]
       [e e])))
-
-(define prim-names (set `void `read `and `+ `- `not `if `eq?
-                        `vector `vector-ref `vector-set!))
 
 ;; C2 -> C2
 ;; expose-allocation (after flatten)
