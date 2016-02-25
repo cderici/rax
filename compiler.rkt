@@ -110,14 +110,14 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-        
+
         [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
          (let* ([var-types (uncover-types e)]
                 [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))]
                 [new-vars (getVars new-assignments)]
                 [new-var-types (uncover-types `(program ,new-vars (type ,t) ,@new-assignments (return ,final-e)))])
            `(program ,new-var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,@new-assignments (return ,final-e)))]
-        
+
         [else `(,e)]))))
 
 (define (uncover-live-roots assignments current-lives out)
@@ -169,8 +169,8 @@
        (cmpq ,arg1 (reg rax)))]
     [`(movq (reg ,r) (reg ,r)) ; Kill redundant moves
      `()]
-    [`(movzbq ,arg1 ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
-     `((movzbq ,arg1 (reg rax))
+    [`(,(and op (or `movzbq `leaq)) ,arg1 ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
+     `((,op ,arg1 (reg rax))
        (movq (reg rax) ,arg2))]
     [`(,op ,(and arg1 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_)))
            ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
@@ -240,6 +240,7 @@
     [`(label ,sym) (string-append (symbol->string sym) ":\n")]
     [`(callq ,l) (display-instr "callq" "~a"
                                 (label l))]
+    [`(indirect-callq ,arg) (display-instr "callq" "*~a" arg)]
     [`(,op ,a) (display-instr "~a" "~a"
                               (symbol->string op)
                               (print-x86-64-arg a))]
@@ -253,12 +254,15 @@
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (format "~a(%rbp)" (+ n s))] ;; keeping this separate cause I'm not sure if I'm doing the right thing
-      
+
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
       [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
       [`(global-value fromspace_end) (format "~a(%rip)" (label 'fromspace_end))]
-      [`(stack ,s) (format "~a(%rbp)" s)])))
+      [`(stack ,s) (format "~a(%rbp)" s)]
+
+      [`(function-ref ,l) (format "~a(%rip)" (label l))]
+      [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
 
 (define display-instr
   (match-lambda*
@@ -314,7 +318,7 @@
 ; [Pass]
 (define r4-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ;("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
+                    ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
