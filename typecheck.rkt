@@ -4,7 +4,7 @@
 
 (require "utilities.rkt")
 
-; R3 -> Type
+; R4 -> Type
 (define typecheck
   (λ (env)
     (λ (expr)
@@ -74,9 +74,13 @@
               [actual-ty (type-error `(Vector ...) actual-ty vec-exp expr)])]
            [actual-ty (type-error `Integer actual-ty ix expr)])]
         [`(program ,defs ... ,body)
-         `(program (type ,((typecheck (map extract-define-type defs)) body))
-                   ,@defs
-                   ,body)]
+         (let* ([def-types (map extract-define-type defs)]
+                [dup-name  (check-duplicates def-types #:key car)])
+           (if dup-name
+               (error (format "Duplicate defines for `~a`" (car dup-name)))
+               `(program (type ,((typecheck (append def-types env)) body))
+                         ,@defs
+                         ,body)))]
         [`(,exp-rator ,exp-rands ...)
          (let ([ty-rator  ((typecheck env) exp-rator)]
                [tys-rands (map (typecheck env) exp-rands)])
@@ -92,7 +96,6 @@
                                     actual-ty
                                     exp-rator
                                     expr)]))]))))
-
 
 ; (define ...) -> Pair Name Type
 (define extract-define-type

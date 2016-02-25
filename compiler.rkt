@@ -21,7 +21,7 @@
 (define prim-names (set `void `read `and `+ `- `not `if `eq?
                         `vector `vector-ref `vector-set!))
 
-;; R3 -> R3
+;; R4 -> R4
 (define uniquify
   (lambda (alist)
     (lambda (e)
@@ -92,7 +92,7 @@
              ,@(map (reveal-functions locals) rands))]
       [e e])))
 
-;; C2 -> C2
+;; C3 -> C3
 ;; expose-allocation (after flatten)
 (define expose-allocation
   (lambda (heap-size-bytes var-types)
@@ -133,7 +133,7 @@
                                             ()) out))]
             [else (uncover-live-roots (cdr assignments) current-lives (cons (car assignments) out))]))))
 
-;; C2 -> C2
+;; C3 -> C3
 (define uncover-call-live
   (lambda (e)
     (match e

@@ -37,7 +37,7 @@
               (change-var newVar oldVar (cdr assignments)))]
        [else (error 'change-var (format "unhandled case : ~a" (car assignments)))])]))
 
-;; R3 -> C2
+;; R4 -> C3
 (define flatten
   (lambda (vars)
     (lambda (e)
