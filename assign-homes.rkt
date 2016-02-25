@@ -287,7 +287,7 @@
       ((empty? colors) outVals)
       ((<= numUsableRegs 0)
        (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers numUsableRegs
-                                (list (cons `(,(car colors) . ,(* current-stack-loc -8)) current-map)
+                                (list (cons `(,(car colors) . ,(* (+ 1 current-stack-loc) -8)) current-map)
                                       current-usable-regs
                                       (add1 current-stack-loc))))
       (else
@@ -307,7 +307,7 @@
          (if (not picked-reg) ; pick-a-reg signaled that we cannot find a register for that color
              ; so we're assigning a stack position for it and continue
              (map-colors-to-locations (cdr colors) colors-names inter-graph all-registers numUsableRegs
-                                      (list (cons `(,c-color . ,(* current-stack-loc -8)) current-map)
+                                      (list (cons `(,c-color . ,(* (+ 1 current-stack-loc) -8)) current-map)
                                             current-usable-regs
                                             (add1 current-stack-loc)))
              ; we have a picked-reg, put it and continue
