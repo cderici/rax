@@ -35,17 +35,28 @@
                            (cdr idNewID)))]
         [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
-        #|[`(define ,(list fun `[,args : ,tys] ...) : ,ty-ret ,body)
-         (let ([new-args (map gensym
-         `(define ,args : ,ty-ret
-            ,((uniquify alist) body))] |#
+        [`(define ,(list fun `[,args : ,tys] ...) : ,ty-ret ,body)
+         (let* ([new-args    (map gensym args)]
+                [assocs      (map cons args new-args)]
+                [new-arg-tys (map (λ (a t) `[,a : ,t]) new-args tys)])
+           `(define (,fun ,@new-arg-tys) : ,ty-ret
+              ,((uniquify (append assocs alist)) body)))]
         [`(program (type ,t) ,defines ... ,e)
-         `(program (type ,t)
-                   ,@(map (uniquify alist) defines)
-                   ,((uniquify alist) e))]
+         (let* ([def-names (map def-name defines)]
+                [alist^    (append (map cons def-names def-names) alist)])
+           `(program (type ,t)
+                     ,@(map (uniquify alist^) defines)
+                     ,((uniquify alist^) e)))]
         [`(,op ,es ...)
          #:when (set-member? prim-names op)
-         `(,op ,@(map (uniquify alist) es))]))))
+         `(,op ,@(map (uniquify alist) es))]
+        [(list rator rands ...)
+         `(,((uniquify alist) rator)
+           ,(map (uniquify alist) rands))]))))
+
+(define def-name
+  (match-lambda
+    [`(define (,fun ,_ ...) : ,_ ,_) fun]))
 
 (define void-count -1)
 
