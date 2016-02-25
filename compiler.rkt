@@ -307,7 +307,7 @@
 (define r3-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 128 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
@@ -320,7 +320,7 @@
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 128 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)

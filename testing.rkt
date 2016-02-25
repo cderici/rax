@@ -4,7 +4,7 @@
 
 (provide all-tests passes->compiler)
 
-; (debug-level 1)
+; (debug-level 2)
 
 ; [Pass] -> Compiler
 (define passes->compiler
@@ -49,7 +49,7 @@
     (define r2c-tests
       (tests "Caner's R2 tests" typechecker passes interp-scheme "r2c" r2c-range))
 
-    (define r3-range (irange 1 15)) ;(append (irange 1 10) '(15)))
+    (define r3-range (irange 1 15))
     (define r3-tests
       (tests "Jeremy's tests 5: I can't think of a creative subtitle"
              typechecker passes interp-scheme "r3" r3-range))
@@ -89,5 +89,5 @@
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)
-    ;(torture-tests)
+    (torture-tests)
     (display "all tests passed!") (newline)))
