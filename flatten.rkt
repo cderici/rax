@@ -2,7 +2,8 @@
 
 (require "utilities.rkt")
 
-(provide flatten getVars)
+(provide (rename-out [flatten-wrapper flatten])
+         getVars)
 
 (define (getVars assignments)
   (remove-duplicates
@@ -37,20 +38,32 @@
               (change-var newVar oldVar (cdr assignments)))]
        [else (error 'change-var (format "unhandled case : ~a" (car assignments)))])]))
 
+(define flatten-wrapper
+  (lambda (top-level-program)
+    (match top-level-program
+      [`(program (type ,t) ,defines ... ,body)
+         (let-values ([(final-exp assignments) ((flatten '()) body)])
+           (let ([vars (getVars assignments)]
+                 [flat-defines (map (flatten '()) defines)]) ;; note that a single value is returned for each define
+             `(program ,vars (defines ,@flat-defines) (type ,t) ,@assignments (return ,final-exp))))]
+      [else (error 'flatten "invalid R_n input ast structure")])))
+
 ;; R4 -> C3
 (define flatten
   (lambda (vars)
     (lambda (e)
       (match e
-        [`(program (type ,t) ,e)
-         (let-values ([(final-exp assignments) ((flatten vars) e)])
-           (let ([vars (getVars assignments)])
-             `(program ,vars (type ,t) ,@assignments (return ,final-exp))))]
         ;; values
         [`(void)      (values e '())]
         [(? boolean?) (values e '())]
         [(? symbol?)  (values e '())]
         [(? integer?) (values e '())]
+        [`(define (,f-name ,args ...) ;; args -> (arg-name : arg-type) ...
+            : ,return-type ,body)
+         (let-values ([(func-final-exp func-assignments) ((flatten '()) body)])
+           (let ([vars (getVars func-assignments)])
+             `(define (,f-name ,@args) :  ,return-type ,vars ,@func-assignments (return ,func-final-exp))))]
+
         ;; let
         [`(let ([,x ,e]) ,body)
          (let-values ([(flat-e assgn-e) ((flatten vars) e)]
@@ -112,7 +125,7 @@
               ((flatten vars) `(if ,cnd-inner
                                    (if ,thn-inner ,thn ,els)
                                    (if ,els-inner ,thn ,els)))]
-                           
+
              [else
               (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
         ;; +, -, (read), not, eq?
