@@ -45,7 +45,7 @@
          (let-values ([(final-exp assignments) ((flatten '()) body)])
            (let ([vars (getVars assignments)]
                  [flat-defines (map (flatten '()) defines)]) ;; note that a single value is returned for each define
-             `(program ,vars (defines ,@flat-defines) (type ,t) ,@assignments (return ,final-exp))))]
+             `(program ,vars (type ,t) (defines ,@flat-defines) ,@assignments (return ,final-exp))))]
       [else (error 'flatten "invalid R_n input ast structure")])))
 
 ;; R3 -> C2
