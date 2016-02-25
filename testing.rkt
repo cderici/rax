@@ -89,5 +89,5 @@
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)
-    (torture-tests)
+    ;(torture-tests)
     (display "all tests passed!") (newline)))

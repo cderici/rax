@@ -283,6 +283,7 @@
   (let* ((current-map (car outVals)) ;; ((0 . rdx) (1 . -8) (2 . -16)))
          (current-usable-regs (cadr outVals)) ;; list of symbols (registers)
          (current-stack-loc (caddr outVals))) ;; negative number
+    (flush-output)
     (cond
       ((empty? colors) outVals)
       ((<= numUsableRegs 0)
