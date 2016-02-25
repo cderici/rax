@@ -78,7 +78,7 @@
                    ,body)]
         [`(program ,defs ... ,body)
          `(program (type ,((typecheck (map extract-define-type defs)) body))
-                   ,defs
+                   ,@defs
                    ,body)]
         [`(,exp-rator ,exp-rands ...)
          (let ([ty-rator  ((typecheck env) exp-rator)]
