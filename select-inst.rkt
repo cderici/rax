@@ -14,14 +14,14 @@
   (lambda (assignments+return rootstack-var added-vars)
     (cond
       ((empty? assignments+return) (values '() added-vars))
-      (else                                               
-       (match (car assignments+return)  
-         [`() '()]       
+      (else
+       (match (car assignments+return)
+         [`() '()]
          ;; assign
          [`(assign ,var ,rhs)
           (let-values ([(new-assignments new-added-vars)
                         (select-instructions-inner (cdr assignments+return) rootstack-var added-vars)])
-            (values 
+            (values
              (append
               (match rhs
                 [`(void)      `((movq (int 0)             (var ,var)))]
@@ -72,7 +72,7 @@
                         [tag (bitwise-ior not-forward-ptr-bit
                                           (arithmetic-shift length 1)
                                           (arithmetic-shift pointer-mask 7))])
-                   
+
                    `((movq (global-value free_ptr) (var ,var))
                      (addq (int ,(* 8 (+ len 1))) (global-value free_ptr))
                      (movq (var ,var) (reg r11))
@@ -94,10 +94,10 @@
                    `((movq (var ,vec) (reg r11))
                      (movq ,arg-exp (offset (reg r11) ,(* 8 (+ n 1))))
                      (movq (int 0) (var ,var))))]
-                
+
                 [else (error 'select-instructions "don't know how to handle this rhs~a")]) new-assignments)
              new-added-vars))]
-         
+
          ;; initialize
          [`(initialize ,rootlen ,heaplen)
           (let-values ([(new-assignments new-added-vars)
@@ -108,39 +108,39 @@
                        (callq initialize)
                        (movq (global-value rootstack_begin) (var ,rootstack-var))) new-assignments)
              (cons rootstack-var new-added-vars)))]
-         
+
          [`(call-live-roots (,root-vars ...) (collect ,bytes))
           (let ([new-rootstack-var (gensym 'rootstack.)])
             (let-values ([(new-assignments new-added-vars)
                           (select-instructions-inner (cdr assignments+return) new-rootstack-var added-vars)])
               (values
-               (append 
+               (append
                 `(;; pushing all the live roots onto the root stack
                   ,@(map (lambda (root-var offset) `(movq (var ,root-var) (offset (var ,rootstack-var) ,offset)))
                          root-vars (build-list (length root-vars) (lambda (x) (* x 8))))
-                  
+
                   (movq (var ,rootstack-var) (var ,new-rootstack-var))
-                  (addq (int ,(length root-vars)) (var ,new-rootstack-var))
+                  (addq (int ,(* 8 (length root-vars))) (var ,new-rootstack-var))
                   (movq (var ,new-rootstack-var) (reg rdi))
                   (movq (int ,bytes) (reg rsi))
                   (callq collect)
-                  
+
                   ;; moving live roots back to the actual stack
                   ,@(map (lambda (offset root-var) `(movq (offset (var ,rootstack-var) ,offset) (var ,root-var)))
                          (build-list (length root-vars) (lambda (x) (* x 8))) root-vars))
                 new-assignments)
                (cons new-rootstack-var added-vars))))]
 
-         ;; (if (collection-needed? n) ((call-live-roots (,vars ...) (collect n))) ())     
+         ;; (if (collection-needed? n) ((call-live-roots (,vars ...) (collect n))) ())
          [`(if (collection-needed? ,bytes) ,thns ,elss)
-          
+
           (let ([end-data-var (gensym 'end-data.)]
                 [less-than-var (gensym 'lt.)])
             (let-values ([(elss-new-ass elss-added-vars) (select-instructions-inner elss rootstack-var added-vars)]
                          [(thns-new-ass thns-added-vars) (select-instructions-inner thns rootstack-var added-vars)]
                          [(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) rootstack-var added-vars)])
               (values
-               (append 
+               (append
                 `((movq (global-value free_ptr) (var ,end-data-var))
                   (addq (int ,bytes) (var ,end-data-var))
                   (cmpq (var ,end-data-var) (global-value fromspace_end))
