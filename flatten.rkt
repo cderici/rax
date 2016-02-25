@@ -48,7 +48,7 @@
              `(program ,vars (type ,t) (defines ,@flat-defines) ,@assignments (return ,final-exp))))]
       [else (error 'flatten "invalid R_n input ast structure")])))
 
-;; R3 -> C2
+;; R4 -> C3
 (define flatten
   (lambda (vars)
     (lambda (e)
@@ -63,7 +63,7 @@
          (let-values ([(func-final-exp func-assignments) ((flatten '()) body)])
            (let ([vars (getVars func-assignments)])
              `(define (,f-name ,@args) :  ,return-type ,vars ,@func-assignments (return ,func-final-exp))))]
-         
+
         ;; let
         [`(let ([,x ,e]) ,body)
          (let-values ([(flat-e assgn-e) ((flatten vars) e)]
@@ -125,7 +125,7 @@
               ((flatten vars) `(if ,cnd-inner
                                    (if ,thn-inner ,thn ,els)
                                    (if ,els-inner ,thn ,els)))]
-                           
+
              [else
               (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
         ;; +, -, (read), not, eq?
