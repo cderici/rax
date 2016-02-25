@@ -8,6 +8,7 @@
 /********************************
  *        Ryan's headers        *
  ********************************/
+#include <string.h>
 #include "rgscott_cheney.h"
 #include "rgscott_utilities.h"
 
@@ -465,8 +466,7 @@ void rgscott_cheney(int64_t **rootstack_ptr) {
 
 */
 void rgscott_copy_vector(int64_t **vector_ptr_loc) {
-  if (*vector_ptr_loc) {
-    const int64_t tag = *vector_ptr_loc[0];
+    const int64_t tag = (*vector_ptr_loc)[0];
 
     if (is_forwarding(tag)) {
       // Update location of pointer to point to new data
@@ -481,15 +481,19 @@ void rgscott_copy_vector(int64_t **vector_ptr_loc) {
 
       // Copy over the data (including the tag!)
       for (int i = 0; i <= vector_length; ++i) {
-        new_vector[i] = *vector_ptr_loc[i];
+        new_vector[i] = (*vector_ptr_loc)[i];
       }
+      // In theory, the above code is equivalent to this:
+      //
+      //   memcpy(new_vector, *vector_ptr_loc, new_bytes * sizeof(int64_t));
+      //
+      // In case of an emergency, use that instead.
 
       // Change tags of both (1) the old pointer, and (2) the old pointer's location
       // to be forwarding pointer to new data
       *(int64_t **)(*vector_ptr_loc) = new_vector;
       *vector_ptr_loc                = new_vector;
     }
-  }
 }
 
 bool rgscott_test_bit(const int64_t bitfield, const int n) {
