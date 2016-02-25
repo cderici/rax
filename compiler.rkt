@@ -263,7 +263,7 @@
 
 ; [Pass]
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("flatten" ,flatten ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ; ("assign homes" ,(assign-homes `()) ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
@@ -273,7 +273,7 @@
 ; [Pass]
 (define r2-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("flatten" ,flatten ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
@@ -283,7 +283,7 @@
 ; [Pass]
 (define r3-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
@@ -296,7 +296,7 @@
 (define r4-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ;("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
-                    ("flatten" ,(flatten '()) ,interp-C)
+                    ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 1280 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
