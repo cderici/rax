@@ -99,7 +99,7 @@
                 (append (foldr append null type) types)
                 (append type types)))
           null var-types)))
-   
+
 ;; C3 -> C3
 ;; expose-allocation (after flatten)
 (define expose-allocation
@@ -118,11 +118,11 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-        
+
         [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
          (let ([new-body (map (expose-allocation heap-size-bytes var-types) body)])
            `(define (,f ,@arg-types) : ,t ,vars* ,@(foldr append null new-body)))]
-        
+
         [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
          (let* ([var-types (ugly-fix-uncover-types (uncover-types e))]
                 [new-defines (map (expose-allocation heap-size-bytes var-types) defs)]
@@ -153,7 +153,7 @@
       [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
        (let ([new-body (uncover-live-roots body '() '())])
        `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
-       
+
       [`(program ,var-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
        (let ([vars-without-types (map car var-types)]
              [new-defines (map uncover-call-live defs)]
@@ -325,7 +325,7 @@
 (define r3-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 128 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
@@ -338,7 +338,7 @@
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 128 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)

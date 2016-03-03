@@ -73,14 +73,21 @@
                      (type-error old-val-ty new-val-ty new-val expr)))]
               [actual-ty (type-error `(Vector ...) actual-ty vec-exp expr)])]
            [actual-ty (type-error `Integer actual-ty ix expr)])]
+        [`(define ,(list fun `[,arg1 : ,ty1] ...) : ,ty-ret ,body)
+         (let ([actual-ty-ret ((typecheck (append (map cons arg1 ty1) env)) body)])
+           (if (eq? ty-ret actual-ty-ret)
+               ty-ret
+               (type-error ty-ret actual-ty-ret body expr)))]
         [`(program ,defs ... ,body)
          (let* ([def-types (map extract-define-type defs)]
                 [dup-name  (check-duplicates def-types #:key car)])
            (if dup-name
                (error (format "Duplicate defines for `~a`" (car dup-name)))
-               `(program (type ,((typecheck (append def-types env)) body))
-                         ,@defs
-                         ,body)))]
+               (let ([_ (map (typecheck (append def-types env)) defs)]
+                     [ret-ty ((typecheck (append def-types env)) body)])
+                 `(program (type ,ret-ty)
+                           ,@defs
+                           ,body))))]
         [`(,exp-rator ,exp-rands ...)
          (let ([ty-rator  ((typecheck env) exp-rator)]
                [tys-rands (map (typecheck env) exp-rands)])
