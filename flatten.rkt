@@ -18,6 +18,8 @@
                       [exp2-maybe (if (symbol? exp2) (cons exp2 exp1-maybe) exp1-maybe)])
                  ;; we run remove-duplicates at the top level, so don't worry about the uniqueness
                  exp2-maybe)]
+              [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...) (append vars* vars)]
+               
               [else vars]))
           '() assignments)))
 

@@ -52,7 +52,7 @@
          `(,op ,@(map (uniquify alist) es))]
         [(list rator rands ...)
          `(,((uniquify alist) rator)
-           ,(map (uniquify alist) rands))]))))
+           ,@(map (uniquify alist) rands))]))))
 
 (define def-name
   (match-lambda
@@ -92,6 +92,14 @@
              ,@(map (reveal-functions locals) rands))]
       [e e])))
 
+(define (ugly-fix-uncover-types var-types)
+  (remove-duplicates
+   (foldr (lambda (type types)
+            (if (list? (caar type))
+                (append (foldr append null type) types)
+                (append type types)))
+          null var-types)))
+   
 ;; C3 -> C3
 ;; expose-allocation (after flatten)
 (define expose-allocation
@@ -110,13 +118,18 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-
-        [`(program (,vars ...) (type ,t) ,assignments ... (return ,final-e))
-         (let* ([var-types (uncover-types e)]
-                [new-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) assignments))]
-                [new-vars (getVars new-assignments)]
-                [new-var-types (uncover-types `(program ,new-vars (type ,t) ,@new-assignments (return ,final-e)))])
-           `(program ,new-var-types (type ,t) (initialize 10000 ,heap-size-bytes) ,@new-assignments (return ,final-e)))]
+        
+        [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
+         (let ([new-body (map (expose-allocation heap-size-bytes var-types) body)])
+           `(define (,f ,@arg-types) : ,t ,vars* ,@(foldr append null new-body)))]
+        
+        [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
+         (let* ([var-types (ugly-fix-uncover-types (uncover-types e))]
+                [new-defines (map (expose-allocation heap-size-bytes var-types) defs)]
+                [new-main-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) main-assignments))]
+                [new-vars (remove-duplicates (append (getVars new-main-assignments) (foldr append null (map getVars new-defines))))]
+                [new-var-types (ugly-fix-uncover-types (uncover-types `(program ,new-vars (type ,t) (defines ,@new-defines) ,@new-main-assignments (return ,final-e))))])
+           `(program ,new-var-types (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
 
         [else `(,e)]))))
 
