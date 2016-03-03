@@ -150,10 +150,15 @@
 (define uncover-call-live
   (lambda (e)
     (match e
-      [`(program ,var-types (type ,t) (initialize ,s ,h) ,assignments ... (return ,final-e))
+      [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
+       (let ([new-body (uncover-live-roots body '() '())])
+       `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
+       
+      [`(program ,var-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
        (let ([vars-without-types (map car var-types)]
+             [new-defines (map uncover-call-live defs)]
              [new-assignments (uncover-live-roots assignments '() '())])
-         `(program ,vars-without-types (type ,t) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
+         `(program ,vars-without-types (type ,t) (defines ,@new-defines) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
 
 
 
