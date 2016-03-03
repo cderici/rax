@@ -95,8 +95,8 @@
 (define (ugly-fix-uncover-types var-types)
   (remove-duplicates
    (foldr (lambda (type types)
-            (if (list? (caar type))
-                (append (foldr append null type) types)
+            (if (and (not (null? type)) (list? (caar type)))
+                types
                 (append type types)))
           null var-types)))
 

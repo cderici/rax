@@ -2,25 +2,61 @@
 
 (provide select-instructions)
 
+(define arg-registers '(rsi rdx rcx r8 r9)) ;; rdi is used for passing the rootstack variable
 
 (define select-instructions
   (match-lambda
-    [`(program (,vars ...) (type ,t) ,assignments+return ...)
-     (let-values ([(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
-       `(program ,(remove-duplicates (append vars added-vars)) (type ,t) ,@new-assignments+return))]))
+    [`(program (,vars ...) (type ,t) (defines ,defs ...) ,assignments+return ...)
+     (let-values ([(new-defines define-vars max-stack) (process-defines defs)]
+                  [(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
+       `(program (,(remove-duplicates (append vars added-vars)) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return))]))
 
+(define (process-defines defines)
+  (cond
+    ((null? defines) (values null null -1))
+    (else
+     (let-values
+         ([(new-define new-vars max-stack-needed) (select-instructions-inner (list (car defines)) 'dummy '())]
+          [(rest-defines rest-vars rest-max-stack-needed) (process-defines (cdr defines))])
+       (values (cons new-define rest-defines)
+               (remove-duplicates (append new-vars rest-vars))
+               (max max-stack-needed rest-max-stack-needed))))))
+
+(define (encode-arg arg)
+  (cond
+    ((equal? arg `(void)) `(int 0))
+    ((boolean? arg) `(int ,(if arg 1 0)))
+    ((integer? arg) `(int ,arg))
+    ((symbol? arg) `(var ,arg))
+    (else (error 'encode-arg (format "something's wrong with the argument ~a" arg)))))
 
 (define select-instructions-inner
-  (lambda (assignments+return rootstack-var added-vars)
+  (lambda (assignments+return current-rootstack-var added-vars)
     (cond
       ((empty? assignments+return) (values '() added-vars))
       (else
        (match (car assignments+return)
          [`() '()]
+         ;; define
+         [`(define (,f ,arg-types ...) : ,t ,local-vars ,body ...)
+          (let* ([rootstack-local-var (gensym 'rslocal.)]
+                 [arg-names (map (lambda (arg) (car arg)) arg-types)]
+                 [num-vars (length arg-names)]
+                 [stack-places-num (if (<= num-vars 5) 0 (- num-vars 5))]
+                 [register-num (if (>= num-vars 5) 5 num-vars)]
+                 [pass-arg-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
+                                          (build-list stack-places-num (lambda (x) `(stack-arg ,(add1 x)))))]
+                 
+                 [init             `((movq (reg rdi) (var ,rootstack-local-var))
+                                     ,@(map (lambda (var plc) `(movq ,plc (var ,var))) arg-names pass-arg-places))])
+            (let-values ([(new-body new-vars) (select-instructions-inner body rootstack-local-var '())])
+              (values `(define (,f) ,(add1 num-vars) (,(cons rootstack-local-var (append arg-names local-vars)) ,stack-places-num) ,@init ,@new-body)
+                      new-vars
+                      stack-places-num)))]
          ;; assign
          [`(assign ,var ,rhs)
           (let-values ([(new-assignments new-added-vars)
-                        (select-instructions-inner (cdr assignments+return) rootstack-var added-vars)])
+                        (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
             (values
              (append
               (match rhs
@@ -56,6 +92,23 @@
                    `((cmpq ,arg1-instr ,arg2-instr)
                      (sete (byte-reg al))
                      (movzbq (byte-reg al) (var ,var))))]
+                ;; function-ref
+                [`(function-ref ,f)
+                 `((leaq (function-ref ,f) (var ,var)))]
+                ;; function application
+                [`(app ,fun ,args ...)
+                 (let* ([move-rootstack `((movq (var ,current-rootstack-var) (reg rdi)))]
+                        [num-vars (length args)]
+                        [stack-places-num (if (<= num-vars 5) 0 (- num-vars 5))]
+                        [register-num (if (>= num-vars 5) 5 num-vars)]
+                        [passing-to-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
+                                                   (build-list stack-places-num (lambda (x) `(stack-arg ,(add1 x)))))]
+                        [move-arguments `(,@(map (lambda (param passing-to) `(movq ,(encode-arg param) ,passing-to)) args passing-to-places))])
+                   `(,@move-rootstack
+                     ,@move-arguments
+                     (indirect-callq (var ,fun))
+                     (movq (reg rax) (var ,var))))]
+                
                 ;; (allocate n (Vector type))
                 [`(allocate ,len (Vector ,types ...))
                  (let* ([not-forward-ptr-bit 1]
@@ -101,13 +154,13 @@
          ;; initialize
          [`(initialize ,rootlen ,heaplen)
           (let-values ([(new-assignments new-added-vars)
-                        (select-instructions-inner (cdr assignments+return) rootstack-var added-vars)])
+                        (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
             (values
              (append `((movq (int ,rootlen) (reg rdi))
                        (movq (int ,heaplen) (reg rsi))
                        (callq initialize)
-                       (movq (global-value rootstack_begin) (var ,rootstack-var))) new-assignments)
-             (cons rootstack-var new-added-vars)))]
+                       (movq (global-value rootstack_begin) (var ,current-rootstack-var))) new-assignments)
+             (cons current-rootstack-var new-added-vars)))]
 
          [`(call-live-roots (,root-vars ...) (collect ,bytes))
           (let ([new-rootstack-var (gensym 'rootstack.)])
@@ -116,17 +169,17 @@
               (values
                (append
                 `(;; pushing all the live roots onto the root stack
-                  ,@(map (lambda (root-var offset) `(movq (var ,root-var) (offset (var ,rootstack-var) ,offset)))
+                  ,@(map (lambda (root-var offset) `(movq (var ,root-var) (offset (var ,current-rootstack-var) ,offset)))
                          root-vars (build-list (length root-vars) (lambda (x) (* x 8))))
 
-                  (movq (var ,rootstack-var) (var ,new-rootstack-var))
+                  (movq (var ,current-rootstack-var) (var ,new-rootstack-var))
                   (addq (int ,(* 8 (length root-vars))) (var ,new-rootstack-var))
                   (movq (var ,new-rootstack-var) (reg rdi))
                   (movq (int ,bytes) (reg rsi))
                   (callq collect)
 
                   ;; moving live roots back to the actual stack
-                  ,@(map (lambda (offset root-var) `(movq (offset (var ,rootstack-var) ,offset) (var ,root-var)))
+                  ,@(map (lambda (offset root-var) `(movq (offset (var ,current-rootstack-var) ,offset) (var ,root-var)))
                          (build-list (length root-vars) (lambda (x) (* x 8))) root-vars))
                 new-assignments)
                (cons new-rootstack-var added-vars))))]
@@ -136,9 +189,9 @@
 
           (let ([end-data-var (gensym 'end-data.)]
                 [less-than-var (gensym 'lt.)])
-            (let-values ([(elss-new-ass elss-added-vars) (select-instructions-inner elss rootstack-var added-vars)]
-                         [(thns-new-ass thns-added-vars) (select-instructions-inner thns rootstack-var added-vars)]
-                         [(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) rootstack-var added-vars)])
+            (let-values ([(elss-new-ass elss-added-vars) (select-instructions-inner elss current-rootstack-var added-vars)]
+                         [(thns-new-ass thns-added-vars) (select-instructions-inner thns current-rootstack-var added-vars)]
+                         [(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append
                 `((movq (global-value free_ptr) (var ,end-data-var))
@@ -162,9 +215,9 @@
                                  [(boolean? exp2)     `(int ,(if exp2 1 0))]
                                  [(integer? exp2)     `(int ,exp2)]
                                  [(symbol? exp2)      `(var ,exp2)])])
-            (let-values ([(out-thns added-thns) (select-instructions-inner thns rootstack-var added-vars)]
-                         [(out-elss added-elss) (select-instructions-inner elss rootstack-var added-vars)]
-                         [(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) rootstack-var added-vars)])
+            (let-values ([(out-thns added-thns) (select-instructions-inner thns current-rootstack-var added-vars)]
+                         [(out-elss added-elss) (select-instructions-inner elss current-rootstack-var added-vars)]
+                         [(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append
                 `((if (eq? ,exp1-inst ,exp2-inst)
@@ -182,7 +235,7 @@
                                    (if e `(int 1) `(int 0))
                                    `(var ,e))))])
             (let-values ([(new-assignments new-added-vars)
-                          (select-instructions-inner (cdr assignments+return) rootstack-var added-vars)])
+                          (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append `((movq ,e-int (reg rax))) new-assignments)
                new-added-vars)))])))))
