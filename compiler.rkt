@@ -69,7 +69,7 @@
                                `(function-ref ,f))]
       [`(let ([,x ,e]) ,body)
        `(let ([,x ,((reveal-functions locals) e)])
-          ,((reveal-functions (set-add x locals)) body))]
+          ,((reveal-functions (set-add locals x)) body))]
       [`(if ,cnd ,thn ,els)
        `(if ,((reveal-functions locals) cnd)
             ,((reveal-functions locals) thn)
