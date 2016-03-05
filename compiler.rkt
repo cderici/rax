@@ -197,8 +197,10 @@
      ; Both arguments can't be memory locations
      `((movq ,arg1 (reg rax))
        (,op  (reg rax) ,arg2))]
-    [`(program ,i (type ,t) ,instrs ...)
-     `(program ,i (type ,t) ,@(append-map patch-instr instrs))]
+    [`(define (,f) ,i ,instrs ...)
+     `(define (,f) ,i ,@(append-map lower-conditionals instrs))]
+    [`(program ,i (type ,t) (defines ,defn ...) ,instrs ...)
+     `(program ,i (type ,t) (defines ,@(map patch-instr defn)) ,@(append-map patch-instr instrs))]
     [x86-e `(,x86-e)]))
 
 ; x86* -> actual, honest-to-goodness x86-64
