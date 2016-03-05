@@ -175,8 +175,10 @@
          (label ,thenlabel)
          ,@(append-map lower-conditionals thns)
          (label ,endlabel)))]
-    [`(program ,i (type ,t) ,instrs ...)
-     `(program ,i (type ,t) ,@(append-map lower-conditionals instrs))]
+    [`(define (,f) ,i ,instrs ...)
+     `(define (,f) ,i ,@(append-map lower-conditionals instrs))]
+    [`(program ,i (type ,t) (defines ,defn ...) ,instrs ...)
+     `(program ,i (type ,t) (defines ,@(map lower-conditionals defn)) ,@(append-map lower-conditionals instrs))]
     [x `(,x)]))
 
 ; x86* -> x86
