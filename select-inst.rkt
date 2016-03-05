@@ -4,12 +4,16 @@
 
 (define arg-registers '(rsi rdx rcx r8 r9)) ;; rdi is used for passing the rootstack variable
 
+(define toplevels '())
+
 (define select-instructions
   (match-lambda
     [`(program (,vars ...) (type ,t) (defines ,defs ...) ,assignments+return ...)
-     (let-values ([(new-defines define-vars max-stack) (process-defines defs)]
-                  [(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
-       `(program (,(remove-duplicates (append vars added-vars)) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return))]))
+     (begin
+       (set! toplevels defs)
+       (let-values ([(new-defines define-vars max-stack) (process-defines defs)]
+                    [(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
+         `(program (,(remove-duplicates (append vars added-vars)) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return)))]))
 
 (define (process-defines defines)
   (cond
@@ -30,6 +34,16 @@
     ((symbol? arg) `(var ,arg))
     (else (error 'encode-arg (format "something's wrong with the argument ~a" arg)))))
 
+(define (find-top-calls body toplevels)
+  (cond
+    ((empty? body) '())
+    (else
+     (match (car body)
+       [`(assign ,var (function-ref ,f))
+        (append (filter (λ (top) (eqv? f (car (list-ref top 1)))) toplevels)
+                (find-top-calls (cdr body) toplevels))]
+       [else (find-top-calls (cdr body) toplevels)]))))
+
 (define select-instructions-inner
   (lambda (assignments+return current-rootstack-var added-vars)
     (cond
@@ -38,19 +52,23 @@
        (match (car assignments+return)
          [`() '()]
          ;; define
-         [`(define (,f ,arg-types ...) : ,t ,local-vars ,body ...)
+         [`(define (,f ,arg-types ...) : ,t ,local-vars ,body ...) ;; REFACTOR : treat rootstack-local-var as an arg
           (let* ([rootstack-local-var (gensym 'rslocal.)]
-                 [arg-names (map (lambda (arg) (car arg)) arg-types)]
+                 [arg-names (map (λ (arg) (car arg)) arg-types)]
                  [num-vars (length arg-names)]
                  [stack-places-num (if (<= num-vars 5) 0 (- num-vars 5))]
                  [register-num (if (>= num-vars 5) 5 num-vars)]
-                 [pass-arg-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
-                                          (build-list stack-places-num (lambda (x) `(stack-arg ,(add1 x)))))]
+                 [pass-arg-places (append (map (λ (reg) `(reg ,reg)) (take arg-registers register-num))
+                                          (build-list stack-places-num (λ (x) `(stack-arg ,(add1 x)))))]
                  
                  [init             `((movq (reg rdi) (var ,rootstack-local-var))
-                                     ,@(map (lambda (var plc) `(movq ,plc (var ,var))) arg-names pass-arg-places))])
+                                     ,@(map (lambda (var plc) `(movq ,plc (var ,var))) arg-names pass-arg-places))]
+                 [maxStack (let* ([topCallDefs (find-top-calls body toplevels)]
+                                  [max-stacks (cons 0 (map (λ (def) (let ([num-var (length (cdr (list-ref def 1)))])
+                                                                      (if (<= num-var 5) 0 (- num-var 5)))) topCallDefs))])
+                             (apply max max-stacks))])
             (let-values ([(new-body new-vars) (select-instructions-inner body rootstack-local-var '())])
-              (values `(define (,f) ,(add1 num-vars) (,(cons rootstack-local-var (append arg-names local-vars)) ,stack-places-num) ,@init ,@new-body)
+              (values `(define (,f) ,(add1 num-vars) (,(cons rootstack-local-var (append arg-names local-vars)) ,maxStack) ,@init ,@new-body)
                       new-vars
                       stack-places-num)))]
          ;; assign

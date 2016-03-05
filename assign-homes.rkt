@@ -28,16 +28,27 @@
   (lambda (x86*-prog)
     ((allocate-registers num-of-registers) (build-interference (uncover-live x86*-prog)))))
 
-
+(define (top-defs-liveness defs new-defs)
+  (cond
+    ((empty? defs) (reverse new-defs))
+    (else
+     (let ([new-def (match (car defs)
+                      [`(define (,f) ,num-vars (,vars ,maxStack) ,instrs ...)
+                       (let-values ([(live-afters new-instrs last-before-dummy)
+                                     (compute-liveness-sets (reverse instrs) (set) '() '())])
+                         `(define (,f) ,num-vars ((,@vars ,live-afters) ,maxStack) ,@new-instrs))])])
+     (top-defs-liveness (cdr defs)
+                        (cons new-def new-defs))))))
 
 (define uncover-live
   (match-lambda
-    [`(program (,vars ...) (type ,t) ,instrs ...)
+    [`(program ((,vars ...) ,maxStack) (type ,t) (defines ,defn ...) ,instrs ...)
      (let-values
          ([(live-afters new-instrs last-before-ignore)
            ;; new-instrs are in correct order (by tail recursion)
            (compute-liveness-sets (reverse instrs) (set) '() '())])
-       `(program (,@vars ,live-afters) (type ,t) ,@new-instrs))]))
+       (let ([new-defs (top-defs-liveness defn '())])
+         `(program ((,@vars ,live-afters) ,maxStack) (type ,t) (defines ,@new-defs) ,@new-instrs)))]))
 
 ;; instrs are given reversed
 (define (compute-liveness-sets instrs live-before-k+1 live-afters new-instrs)
@@ -68,44 +79,21 @@
                           (variable e1) (variable e2))
                `(if (eq? ,e1 ,e2)
                     ,new-thns ,live-afters-thns ,new-elss ,live-afters-elss)))]
+    [`(indirect-callq ,arg)
+     (values (set-union (set-subtract live-after-k (written-variables instr-k))
+                        (read-variables instr-k)
+                        ;; adding caller-save regs to the live afters so they interfere with everything above
+                        ;; so nothing will be written on them
+                        ;; so no need for caller to save them
+                        our-caller-save)
+             
+             instr-k)]
     [else
      ; L_before(k) = (L_after(k) - W(k)) U R(k)
      (values (set-union (set-subtract live-after-k (written-variables instr-k))
                         (read-variables instr-k))
              instr-k)]))
 
-
-
-#|
-; x86* -> x86*
-(define uncover-live
-  (match-lambda
-    [`(program (,vars ...) (type ,t) ,instrs ...)
-     (let
-         ([live-afters
-           (drop (foldr
-                  uncover-live-help
-                  `(,(set))
-                  ; ^ We're a bit dishonest here in that we're matching up instruction
-                  ; k with live-after set k-1 (since this empty set we pass is
-                  ; live-after set k). But that's okay, we'll just end up creating one
-                  ; extra live-after set which is guaranteed to be empty, so we drop it.
-                  instrs) 1)])
-       `(program (,@vars ,live-afters) (type ,t) ,@instrs))]))
-
-; Instruction -> Set Variable -> Set Variable
-(define uncover-live-help
-  (lambda (instr-k+1 live-after-set)
-    (match live-after-set
-      [(list-rest live-after-k+1 live-after-rest)
-       (let* ([live-before-k+1
-               ; L_before(k+1) = (L_after(k+1) - W(k+1)) U R(k + 1)
-               (set-union (set-subtract live-after-k+1
-                                        (written-variables instr-k+1))
-                          (read-variables instr-k+1))]
-              [live-after-k live-before-k+1])
-         (cons live-after-k live-after-set))])))
-|#
 
 ; Instruction -> Set Variable
 (define read-variables
@@ -114,7 +102,8 @@
      (set-union (variable arg1)
                 (variable arg2))]
     [(or `(movq ,arg1 (offset ,arg2 ,n)) `(movq (offset ,arg1 ,n) ,arg2)) (set-union (variable arg1) (variable arg2))]
-    [`(,movq ,arg1 ,_) (variable arg1)]
+    [`(movq ,arg1 ,_) (variable arg1)]
+    [`(indirect-callq ,arg) (variable arg)]
     [_                 (set)]))
 
 ; Instruction -> Set Variable
@@ -134,8 +123,10 @@
   (match-lambda
     [`(,(or `var `reg) ,name) (set name)]
     [`(offset ,var ,n) (variable var)]
-    [(or `(byte-reg ,free-var) `(global-value ,free-var)) (set)]
-    [`(int ,_)                (set)]))
+    [(or `(byte-reg ,_)
+         `(global-value ,_)
+         `(int ,_)
+         `(stack-arg ,_)) (set)]))
 
 ; Arg -> (Int | Symbol) [not-particularly well-typed]
 (define arg-payload
@@ -146,18 +137,25 @@
 ; x86* -> x86*
 (define build-interference
   (match-lambda
-    [`(program (,vars ... ,live-afters) (type ,t) ,instrs ...)
+    [`(define (,f) ,num-vars ((,vars ... ,live-afters) ,maxStack) ,instrs ...)
      (let* ([graph (foldl (curry add-edge-interference)
                           (make-graph vars)
                           instrs
                           live-afters)])
-       `(program (,@vars ,graph) (type ,t) ,@instrs))]))
+       `(define (,f) ,num-vars ((,@vars ,graph) ,maxStack) ,@instrs))]
+    [`(program ((,vars ... ,live-afters) ,maxStack) (type ,t) (defines ,defn ...) ,instrs ...)
+     (let* ([new-defs (map build-interference defn)]
+            [graph (foldl (curry add-edge-interference)
+                          (make-graph vars)
+                          instrs
+                          live-afters)])
+       `(program ((,@vars ,graph) ,maxStack) (type ,t) (defines ,@new-defs) ,@instrs))]))
 
 ; Instruction -> Set Variable -> Graph -> Graph
 (define add-edge-interference
   (lambda (instr live-after-set graph)
     (match instr
-      [(or `(movq ,s ,d) `(movzbq ,s ,d) `(xorq ,s ,d))
+      [(or `(leaq ,s ,d) `(movq ,s ,d) `(movzbq ,s ,d) `(xorq ,s ,d))
        (let [(s-pl (arg-payload s))
              (d-pl (arg-payload d))]
          (sequence-fold
@@ -189,14 +187,27 @@
               (foldl (curry add-edge-interference)
                      graph elss els-lives)
               thns thn-lives)]
+      [`(indirect-callq ,arg)
+       (let ([arg-pl (arg-payload arg)])
+         (sequence-fold
+          (λ (gr v)
+            (if (eqv? arg-pl v)
+                gr
+                (begin
+                  (add-edge gr arg-pl v)
+                  gr)))
+          graph
+          live-after-set))]
       [`(callq ,label)
        (sequence-fold
         (λ (gr v)
           (sequence-fold
            (λ (gr^ r)
-             (begin
-               (add-edge gr^ r v)
-               gr^))
+             (if (eqv? r v)
+                 gr^
+                 (begin
+                   (add-edge gr^ r v)
+                   gr^)))
            gr
            our-caller-save))
         graph
@@ -416,17 +427,28 @@
 (define allocate-registers
   (lambda (numOfRegs)
     (match-lambda
-      [`(program (,formals ... ,graph) (type ,t) ,instructions ...)
+      [`(define (,f) ,num-vars ((,vars ... ,graph) ,maxStack) ,instrs ...)
+       (let* ([var-nodes (prep vars)]
+              [move-graph (construct-move-graph! instrs (make-graph vars))])
+         (let*-values ([(num-of-stack-slots mapping-function)
+                        (assign-homes graph var-nodes move-graph numOfRegs)]
+                       [(new-instrs) (map mapping-function instrs)]
+                       [(wcsr) (written-callee-save-regs new-instrs)]
+                       [(num-of-stack-slots^) (+ num-of-stack-slots (length wcsr) maxStack)])
+           `(define (,f) ,(* 16 (ceiling (/ num-of-stack-slots^ 2))) ,@new-instrs)))]
+      [`(program ((,formals ... ,graph) ,maxStack) (type ,t) (defines ,defn ...) ,instructions ...)
        (let* ([var-nodes (prep formals)]
-              [move-graph (construct-move-graph! instructions (make-graph formals))])
+              [move-graph (construct-move-graph! instructions (make-graph formals))]
+              [new-defs (map (allocate-registers numOfRegs) defn)])
          (let*-values ([(num-of-stack-slots mapping-function)
                         (assign-homes graph var-nodes move-graph numOfRegs)]
                        [(new-instrs) (map mapping-function instructions)]
                        [(wcsr) (written-callee-save-regs new-instrs)]
                        [(num-of-stack-slots^)
-                        (+ num-of-stack-slots (length wcsr))])
+                        (+ num-of-stack-slots (length wcsr) maxStack)])
            `(program ,(* 16 (ceiling (/ num-of-stack-slots^ 2)))
                      (type ,t)
+                     (defines ,@new-defs)
                      ,@new-instrs)))])))
 
 (define written-callee-save-regs
