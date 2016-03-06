@@ -5,15 +5,20 @@
 (define arg-registers '(rsi rdx rcx r8 r9)) ;; rdi is used for passing the rootstack variable
 
 (define toplevels '())
+(define toplevel-names '())
+
+(define (clean-vars-hack vars)
+  (filter (λ (var) (and (symbol? var) (not (memv var toplevel-names)))) vars))
 
 (define select-instructions
   (match-lambda
     [`(program (,vars ...) (type ,t) (defines ,defs ...) ,assignments+return ...)
      (begin
        (set! toplevels defs)
+       (set! toplevel-names (map (λ (def) (car (list-ref def 1))) defs))
        (let-values ([(new-defines define-vars max-stack) (process-defines defs)]
                     [(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
-         `(program (,(remove-duplicates (append vars added-vars)) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return)))]))
+         `(program (,(clean-vars-hack (remove-duplicates (append vars added-vars))) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return)))]))
 
 (define (process-defines defines)
   (cond
