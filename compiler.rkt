@@ -280,7 +280,7 @@
     [`(label ,sym) (string-append (symbol->string sym) ":\n")]
     [`(callq ,l) (display-instr "callq" "~a"
                                 (label l))]
-    [`(indirect-callq ,arg) (display-instr "callq" "*~a" arg)]
+    [`(indirect-callq ,arg) (display-instr "callq" "*~a" (print-x86-64-arg arg))]
     [`(,op ,a) (display-instr "~a" "~a"
                               (symbol->string op)
                               (print-x86-64-arg a))]
@@ -367,5 +367,3 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
-
-
