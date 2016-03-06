@@ -126,6 +126,7 @@
     [(or `(byte-reg ,_)
          `(global-value ,_)
          `(int ,_)
+         `(stack ,_)
          `(stack-arg ,_)) (set)]))
 
 ; Arg -> (Int | Symbol) [not-particularly well-typed]

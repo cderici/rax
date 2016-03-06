@@ -302,7 +302,7 @@
       [`(stack ,s) (format "~a(%rbp)" s)]
 
       [`(function-ref ,l) (format "~a(%rip)" (label l))]
-      [`(stack-arg ,i)    (format "~a(%rbp)" (* 8 (add1 i)))])))
+      [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
 
 (define display-instr
   (match-lambda*
