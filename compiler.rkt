@@ -152,7 +152,7 @@
     (match e
       [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
        (let ([new-body (uncover-live-roots body '() '())])
-       `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
+         `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
 
       [`(program ,var-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
        (let ([vars-without-types (map car var-types)]
@@ -192,6 +192,12 @@
     [`(,(and op (or `movzbq `leaq)) ,arg1 ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
      `((,op ,arg1 (reg rax))
        (movq (reg rax) ,arg2))]
+    [`(,op (offset (stack ,i) ,n) ,arg2)
+     (append `((movq (stack ,i) (reg r11)))
+             (patch-instr `(,op (offset (reg r11) ,n) ,arg2)))]
+    [`(,op ,arg1 (offset (stack ,i) ,n))
+     (append `((movq (stack ,i) (reg r11)))
+             (patch-instr `(,op ,arg1 (offset (reg r11) ,n))))]
     [`(,op ,(and arg1 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_)))
            ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
      ; Both arguments can't be memory locations
@@ -293,7 +299,7 @@
       [`(int ,i)   (format "$~a" i)]
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
-      [`(offset (stack ,s) ,n) (format "~a(%rbp)" (+ n s))] ;; keeping this separate cause I'm not sure if I'm doing the right thing
+      [`(offset (stack ,s) ,n) (error "wtf r u doin")]
 
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]

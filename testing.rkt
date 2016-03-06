@@ -54,11 +54,11 @@
       (tests "Jeremy's tests 5: I can't think of a creative subtitle"
              typechecker passes interp-scheme "r3" r3-range))
 
-    (define r3c-range (irange 1 5)) ;(irange 1 2))
+    (define r3c-range (irange 1 5))
     (define r3c-tests
       (tests "Ryan's R3 tests" typechecker passes interp-scheme "r3c" r3c-range))
 
-    (define r4c-range (irange 1 4))
+    (define r4c-range (irange 1 7))
     (define r4c-tests
       (tests "Ryan's R4 tests" typechecker passes interp-scheme "r4c" r4c-range))
 
