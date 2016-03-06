@@ -302,7 +302,7 @@
       [`(stack ,s) (format "~a(%rbp)" s)]
 
       [`(function-ref ,l) (format "~a(%rip)" (label l))]
-      [`(stack-arg ,i)    (format "~a(%rbp)" i)])))
+      [`(stack-arg ,i)    (format "~a(%rbp)" (* 8 (add1 i)))])))
 
 (define display-instr
   (match-lambda*
@@ -367,4 +367,5 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
+
 
