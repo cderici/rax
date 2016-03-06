@@ -198,7 +198,7 @@
      `((movq ,arg1 (reg rax))
        (,op  (reg rax) ,arg2))]
     [`(define (,f) ,i ,instrs ...)
-     `(define (,f) ,i ,@(append-map lower-conditionals instrs))]
+     `(define (,f) ,i ,@(append-map patch-instr instrs))]
     [`(program ,i (type ,t) (defines ,defn ...) ,instrs ...)
      `(program ,i (type ,t) (defines ,@(map patch-instr defn)) ,@(append-map patch-instr instrs))]
     [x86-e `(,x86-e)]))
@@ -206,10 +206,28 @@
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
   (match-lambda
-    [`(program ,i (type ,t) ,instrs ...)
+    [`(define (,f) ,i ,instrs ...)
      (let ([wcsr (written-callee-save-regs instrs)])
-       (foldr string-append ""
-              `(,(format "\t.globl ~a\n" (label `main))
+       (apply string-append
+              `(,(format "\t.globl ~a\n" (label f))
+                ,(symbol->string (label f))
+                ":\n"
+
+                ,(display-instr "pushq" "%rbp")
+                ,(display-instr "movq" "%rsp, %rbp")
+                ,(save-callee-regs instrs i wcsr)
+                "\n"
+                ,(apply string-append (map print-x86-64-instr instrs))
+                "\n"
+                ,(restore-callee-regs instrs i wcsr)
+                ,(display-instr "popq" "%rbp")
+                ,(display-instr "retq" ""))))]
+    [`(program ,i (type ,t) (defines ,defn ...) ,instrs ...)
+     (let ([wcsr (written-callee-save-regs instrs)])
+       (apply string-append
+              `(,(string-join (map print-x86-64 defn) "\n\n")
+                "\n"
+                ,(format "\t.globl ~a\n" (label `main))
                 ,(symbol->string (label `main))
                 ":\n"
                 ;; Prelude
@@ -230,7 +248,7 @@
 (define save-callee-regs
   (λ (instrs i wcsr)
     (string-append
-     (if (null? i) "" (display-instr "subq" "$~a, %rsp" i))
+     (if (zero? i) "" (display-instr "subq" "$~a, %rsp" i)) ;; this was (if (null? i) .... isn't i a number?
      (car (foldr (λ (wcs state)
                    (match state
                      [`(,str . ,offset)
@@ -251,7 +269,7 @@
                         (display-instr "movq" "-~a(%rbp), %~a" offset wcs) str)
                        (- offset 8))]))
                  `("" . ,i) wcsr))
-     (if (null? i) "" (display-instr "addq" "$~a, %rsp" i)))))
+     (if (zero? i) "" (display-instr "addq" "$~a, %rsp" i))))) ;; this was (if (null? i) .... isn't i a number?
 
 (define print-x86-64-instr
   (match-lambda
@@ -284,7 +302,7 @@
       [`(stack ,s) (format "~a(%rbp)" s)]
 
       [`(function-ref ,l) (format "~a(%rip)" (label l))]
-      [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
+      [`(stack-arg ,i)    (format "~a(%rbp)" i)])))
 
 (define display-instr
   (match-lambda*
@@ -349,3 +367,4 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
+
