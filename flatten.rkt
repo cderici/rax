@@ -135,7 +135,7 @@
                            [(flat-els statements-els) ((flatten vars) els)])
                 (let ([newIfVar (gensym `if.)])
                   (values newIfVar (append statements-cnd
-                                           `((if ,flat-cnd
+                                           `((if (eq? ,flat-cnd #t)
                                                  ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
                                                  ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
 
