@@ -127,6 +127,17 @@
               ((flatten vars) `(if ,cnd-inner
                                    (if ,thn-inner ,thn ,els)
                                    (if ,els-inner ,thn ,els)))]
+             ;; cnd is an app
+             [(or `(app ,_ ,_) `(vector-ref ,_ ,_))
+              ;; just producing the same if, keeping the else to be alerted when we have a new type of cnd
+              (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
+                           [(flat-thn statements-thn) ((flatten vars) thn)]
+                           [(flat-els statements-els) ((flatten vars) els)])
+                (let ([newIfVar (gensym `if.)])
+                  (values newIfVar (append statements-cnd
+                                           `((if ,flat-cnd
+                                                 ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
+                                                 ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
 
              [else
               (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
