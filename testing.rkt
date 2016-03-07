@@ -23,7 +23,7 @@
 (define tests
   (lambda (caption tc passes interp name range)
     (lambda ()
-      (interp-tests caption tc passes interp name range)
+      ; (interp-tests caption tc passes interp name range)
       (compiler-tests caption tc passes name range))))
 
 (define all-tests
@@ -58,7 +58,7 @@
     (define r3c-tests
       (tests "Ryan's R3 tests" typechecker passes interp-scheme "r3c" r3c-range))
 
-    (define r4c-range (irange 1 7))
+    (define r4c-range (irange 1 8))
     (define r4c-tests
       (tests "Ryan's R4 tests" typechecker passes interp-scheme "r4c" r4c-range))
 

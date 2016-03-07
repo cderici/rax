@@ -75,7 +75,7 @@
            [actual-ty (type-error `Integer actual-ty ix expr)])]
         [`(define ,(list fun `[,arg1 : ,ty1] ...) : ,ty-ret ,body)
          (let ([actual-ty-ret ((typecheck (append (map cons arg1 ty1) env)) body)])
-           (if (eq? ty-ret actual-ty-ret)
+           (if (equal? ty-ret actual-ty-ret)
                ty-ret
                (type-error ty-ret actual-ty-ret body expr)))]
         [`(program ,defs ... ,body)
