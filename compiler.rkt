@@ -92,13 +92,14 @@
              ,@(map (reveal-functions locals) rands))]
       [e e])))
 
-(define (ugly-fix-uncover-types var-types)
-  (remove-duplicates
-   (foldr (lambda (type types)
-            (if (and (not (null? type)) (list? (caar type)))
-                types
-                (append type types)))
-          null var-types)))
+(define (flatten-uncover-types types-nested out)
+  (cond
+    ((null? types-nested) (reverse out))
+    (else (let ([f (car types-nested)])
+            (cond
+              [(symbol? f) (flatten-uncover-types '() (cons types-nested out))]
+              [(or (list? f) (pair? f)) (flatten-uncover-types (cdr types-nested) (flatten-uncover-types (car types-nested) out))]
+              [else (error 'flatten-uncover-types (format "check this out : ~a \n\nin\n\n ~a" f types-nested))])))))
 
 ;; C3 -> C3
 ;; expose-allocation (after flatten)
@@ -124,11 +125,11 @@
            `(define (,f ,@arg-types) : ,t ,vars* ,@(foldr append null new-body)))]
 
         [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
-         (let* ([var-types (ugly-fix-uncover-types (uncover-types e))]
+         (let* ([var-types (flatten-uncover-types (uncover-types e) '())]
                 [new-defines (map (expose-allocation heap-size-bytes var-types) defs)]
                 [new-main-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) main-assignments))]
                 [new-vars (remove-duplicates (append (getVars new-main-assignments) (foldr append null (map getVars new-defines))))]
-                [new-var-types (ugly-fix-uncover-types (uncover-types `(program ,new-vars (type ,t) (defines ,@new-defines) ,@new-main-assignments (return ,final-e))))])
+                [new-var-types (flatten-uncover-types (uncover-types `(program ,new-vars (type ,t) (defines ,@new-defines) ,@new-main-assignments (return ,final-e))) '())])
            `(program ,new-var-types (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
 
         [else `(,e)]))))
@@ -381,3 +382,4 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
+
