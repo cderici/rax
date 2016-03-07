@@ -62,6 +62,10 @@
     (define r4c-tests
       (tests "Ryan's R4 tests" typechecker passes interp-scheme "r4c" r4c-range))
 
+    (define r4-range (irange 1 19))
+    (define r4-tests
+      (tests "Jeremy's R4 tests" typechecker passes interp-scheme "r4" r4-range))
+
     (define uniquify-range (irange 1 5))
     (define uniquify-tests
       (tests "uniquify" typechecker passes interp-scheme "uniquify" uniquify-range))
@@ -85,6 +89,7 @@
     (r2c-tests)
     (r3-tests)
     (r3c-tests)
+    (r4-tests)
     (r4c-tests)
     (uniquify-tests)
     (flatten-tests)
