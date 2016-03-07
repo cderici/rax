@@ -324,8 +324,16 @@
 (define label
   (lambda (l)
     (match (system-type 'os)
-      [`macosx (string->symbol (string-append "_" (symbol->string l)))]
-      [_ l])))
+      [`macosx (string->symbol
+                (string-append "_" (symbol->string (sanitize-label l))))]
+      [_ (sanitize-label l)])))
+
+(define sanitize-label
+  (compose1 string->symbol
+            list->string
+            (curry map (λ (c) (if (char=? c #\-) #\_ c)))
+            string->list
+            symbol->string))
 
 (define genlabel
   (compose1 gensym label))
