@@ -332,7 +332,14 @@
 (define sanitize-label
   (compose1 string->symbol
             list->string
-            (curry map (λ (c) (if (char=? c #\-) #\_ c)))
+            (curry append-map
+                   (λ (c) (if (or (char-alphabetic? c)
+                                  (char-numeric? c)
+                                  (char=? c #\_))
+                              `(,c)
+                              ((compose1 string->list
+                                         number->string
+                                         char->integer) c))))
             string->list
             symbol->string))
 
