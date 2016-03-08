@@ -17,6 +17,12 @@
         [(? symbol?)  (lookup expr env)]
         [`(void)      `Void]
         [`(read)      `Integer]
+        [`(lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body)
+         (let* ([new-env (append (map cons xs ty-args) env)]
+                [ty-body ((typecheck new-env) body)])
+           (if (equal? ty-ret ty-body)
+               `(,@ty-args -> ,ty-ret)
+               (type-error ty-ret ty-body body expr)))]
         [`(let ([,x ,e]) ,body)
          (let* ([t ((typecheck env) e)]
                 [new-env (cons (cons x t) env)])
