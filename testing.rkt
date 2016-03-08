@@ -58,7 +58,7 @@
     (define r3c-tests
       (tests "Ryan's R3 tests" typechecker passes interp-scheme "r3c" r3c-range))
 
-    (define r4c-range (irange 1 8))
+    (define r4c-range (irange 1 7)) ; (irange 1 8))
     (define r4c-tests
       (tests "Ryan's R4 tests" typechecker passes interp-scheme "r4c" r4c-range))
 
