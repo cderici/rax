@@ -8,6 +8,7 @@
          r2-passes
          r3-passes
          r4-passes
+         r5-passes
          uniquify
          flatten
          select-instructions
@@ -348,6 +349,33 @@
 (define genlabel
   (compose1 gensym label))
 
+; Exp -> [Var]
+; (Invariant: output is sorted in ascending order, no duplicates)
+(define fvs
+  (letrec
+      ; Exp -> Set Var
+      ([freevars
+        (λ (exp)
+          (match exp
+            [(? symbol?) (set exp)]
+            [`(lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body)
+             (set-subtract (freevars body) (list->set xs))]
+            [`(let ([,x ,e]) ,body)
+             (set-subtract (set-union (freevars e) (freevars body)) (set x))]
+            [`(if ,cnd ,thn ,els)
+             (set-union (freevars cnd)
+                        (freevars thn)
+                        (freevars els))]
+            [`(function-ref ,f) (freevars f)]
+            [(list app rator rands ...)
+             (foldr set-union (set) (map freevars (cons rator rands)))]
+            [(list op args ...)
+             #:when (set-member? prim-names op)
+             (foldr set-union (set) (map freevars args))]
+            [_ (set)]))])
+    (λ (e)
+      (sort (set->list (freevars e)) symbol<?))))
+
 ; [Pass]
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
@@ -383,6 +411,20 @@
 (define r4-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
+                    ("flatten" ,flatten ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
+                    ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
+                    ("select instructions" ,select-instructions ,interp-x86)
+                    ("register-allocation" ,(register-allocation 5) ,interp-x86)
+                    ("lower-conditionals" ,lower-conditionals ,interp-x86)
+                    ("patch instructions" ,patch-instr ,interp-x86)
+                    ("print x86" ,print-x86-64 #f)))
+
+; [Pass]
+(define r5-passes `(; Implicit typecheck pass occurs at beginning
+                    ("uniquify" ,(uniquify '()) ,interp-scheme)
+                    ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
+                    ; closure-conversion
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
