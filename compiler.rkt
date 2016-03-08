@@ -9,6 +9,7 @@
          r3-passes
          r4-passes
          r5-passes
+         convert-to-closures
          uniquify
          flatten
          select-instructions
@@ -22,7 +23,7 @@
 (define prim-names (set `void `read `and `+ `- `not `if `eq?
                         `vector `vector-ref `vector-set!))
 
-;; R4 -> R4
+;; R5 -> R5
 (define uniquify
   (lambda (alist)
     (lambda (e)
@@ -61,7 +62,7 @@
 
 (define void-count -1)
 
-;; R4 -> R4
+;; R5 -> R5
 (define reveal-functions
   (lambda (locals)
     (match-lambda
@@ -101,6 +102,100 @@
               [(symbol? f) (flatten-uncover-types '() (cons types-nested out))]
               [(or (list? f) (pair? f)) (flatten-uncover-types (cdr types-nested) (flatten-uncover-types (car types-nested) out))]
               [else (error 'flatten-uncover-types (format "check this out : ~a \n\nin\n\n ~a" f types-nested))])))))
+
+
+(define shallow-flatten
+  (curry append-map identity))
+
+; R5 -> R5
+(define convert-to-closures
+  (match-lambda
+    [`(program (type ,t) ,defines ... ,body)
+     (match-let ([(list (cons converted-defs lam-defs1) ...) (map closure-worker defines)]
+                 [(cons body^ lam-defs2) (closure-worker body)])
+       `(program (type ,t)
+                 ,@(append converted-defs
+                           (shallow-flatten lam-defs1)
+                           lam-defs2)
+                 ,body^))]))
+
+; R5 -> (pairof R5 defines)
+(define closure-worker
+  (match-lambda
+    [`(define ,(list fun args ...) : ,ty-ret ,body)
+     (match-let* ([clos              (gensym 'clos_dummy_param)]
+                  [new-args          (cons `[,clos : _] args)]
+                  [(cons body^ defs) (closure-worker body)]
+                  )
+       (cons `(define (,fun ,@new-args) : ,ty-ret ,body^)
+             defs))]
+    [(list `app rator rands ...)
+     (match-let ([(cons rator^ defs1)            (closure-worker rator)]
+                 [(list (cons rands^ defs2) ...) (map closure-worker rands)]
+                 [tmp                            (gensym 'closure_app_temp)])
+       (cons `(let ([,tmp ,rator^])
+                (app (vector-ref ,tmp 0) ,tmp ,@rands^))
+             (append defs1 (shallow-flatten defs2))))]
+    [`(function-ref ,f) (cons `(vector (function-ref ,f)) `())]
+    [`(let ([,x ,e]) ,body)
+     (match-let ([(cons e^    defs1) (closure-worker e)]
+                 [(cons body^ defs2) (closure-worker body)])
+       (cons `(let ([,x ,e^]) ,body^)
+             (append defs1 defs2)))]
+    [`(if ,cnd ,thn ,els)
+     (match-let ([(cons cnd^ defs1) (closure-worker cnd)]
+                 [(cons thn^ defs2) (closure-worker thn)]
+                 [(cons els^ defs3) (closure-worker els)])
+       (cons `(if ,cnd^ ,thn^ ,els^)
+             (append defs1 defs2 defs3)))]
+    [(and lam `(lambda: ,(list args ...) : ,ty-ret ,body))
+     (match-let* ([name (gensym "lam")]
+                  [clos (gensym "clos_param_lam")]
+                  [freevars (fvs lam)]
+                  [(cons body^ defs) (closure-worker body)]
+                  [(cons body^^ _)
+                   (foldr (match-lambda**
+                           [(freevar (cons b n))
+                            (cons `(let ([,freevar (vector-ref ,clos ,n)]) ,b)
+                                  (- n 1))])
+                          (cons body^ (length freevars))
+                          freevars)])
+       (cons `(vector (function-ref ,name) ,@freevars)
+             (cons `(define (,name [,clos : _] ,@args) : ,ty-ret
+                      ,body^^) defs)))]
+    [(list op args ...)
+     #:when (set-member? prim-names op)
+     (match-let ([(list (cons args^ defs) ...) (map closure-worker args)])
+       (cons `(,op ,@args^)
+             (shallow-flatten defs)))]
+    [exp (cons exp `())]))
+
+; Exp -> [Var]
+; (Invariant: output is sorted in ascending order, no duplicates)
+(define fvs
+  (letrec
+      ; Exp -> Set Var
+      ([freevars
+        (λ (exp)
+          (match exp
+            [(? symbol?) (set exp)]
+            [`(lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body)
+             (set-subtract (freevars body) (list->set xs))]
+            [`(let ([,x ,e]) ,body)
+             (set-subtract (set-union (freevars e) (freevars body)) (set x))]
+            [`(if ,cnd ,thn ,els)
+             (set-union (freevars cnd)
+                        (freevars thn)
+                        (freevars els))]
+            [`(function-ref ,f) (freevars f)]
+            [(list `app rator rands ...)
+             (foldr set-union (set) (map freevars (cons rator rands)))]
+            [(list op args ...)
+             #:when (set-member? prim-names op)
+             (foldr set-union (set) (map freevars args))]
+            [_ (set)]))])
+    (λ (e)
+      (sort (set->list (freevars e)) symbol<?))))
 
 ;; C3 -> C3
 ;; expose-allocation (after flatten)
@@ -349,33 +444,6 @@
 (define genlabel
   (compose1 gensym label))
 
-; Exp -> [Var]
-; (Invariant: output is sorted in ascending order, no duplicates)
-(define fvs
-  (letrec
-      ; Exp -> Set Var
-      ([freevars
-        (λ (exp)
-          (match exp
-            [(? symbol?) (set exp)]
-            [`(lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body)
-             (set-subtract (freevars body) (list->set xs))]
-            [`(let ([,x ,e]) ,body)
-             (set-subtract (set-union (freevars e) (freevars body)) (set x))]
-            [`(if ,cnd ,thn ,els)
-             (set-union (freevars cnd)
-                        (freevars thn)
-                        (freevars els))]
-            [`(function-ref ,f) (freevars f)]
-            [(list app rator rands ...)
-             (foldr set-union (set) (map freevars (cons rator rands)))]
-            [(list op args ...)
-             #:when (set-member? prim-names op)
-             (foldr set-union (set) (map freevars args))]
-            [_ (set)]))])
-    (λ (e)
-      (sort (set->list (freevars e)) symbol<?))))
-
 ; [Pass]
 (define r1-passes `(("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
@@ -424,7 +492,7 @@
 (define r5-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
-                    ; closure-conversion
+                    ;; ("convert-to-closures" ,convert-to-closures ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)

@@ -4,7 +4,7 @@
 
 (require "utilities.rkt")
 
-; R4 -> Type
+; R5 -> Type
 (define typecheck
   (λ (env)
     (λ (expr)

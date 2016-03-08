@@ -50,7 +50,7 @@
              `(program ,vars (type ,t) (defines ,@flat-defines) ,@assignments (return ,final-exp))))]
       [else (error 'flatten "invalid R_n input ast structure")])))
 
-;; R4 -> C3
+;; R5 -> C3
 (define flatten
   (lambda (vars)
     (lambda (e)
