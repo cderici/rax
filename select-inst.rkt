@@ -73,7 +73,7 @@
                                                                       (if (<= num-var 5) 0 (- num-var 5)))) topCallDefs))])
                              (apply max max-stacks))])
             (let-values ([(new-body new-vars) (select-instructions-inner body rootstack-local-var '())])
-              (values `(define (,f) ,(add1 num-vars) (,(cons rootstack-local-var (append arg-names local-vars)) ,maxStack) ,@init ,@new-body)
+              (values `(define (,f) ,(add1 num-vars) (,(cons rootstack-local-var (append arg-names new-vars local-vars)) ,maxStack) ,@init ,@new-body)
                       new-vars
                       stack-places-num)))]
          ;; assign

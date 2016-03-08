@@ -113,7 +113,8 @@
            `((if (collection-needed? ,bytes)
                  ((collect ,bytes))
                  ())
-             (assign ,lhs (allocate ,len ,(cdr (assv lhs var-types))))
+             (assign ,lhs (allocate ,len ,(cdr (let ([j (assv lhs var-types)])
+                                                 (if (not j) (error 'expose-allocation (format "not found var-type of : ~a" lhs)) j)))))
              ,@(map (lambda (vector-element position)
                       (let ([void-var (string->symbol (string-append "void." (begin (set! void-count (add1 void-count))
                                                                                     (number->string void-count))))])
@@ -121,8 +122,9 @@
                     e (range len))))]
 
         [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
-         (let ([new-body (map (expose-allocation heap-size-bytes var-types) body)])
-           `(define (,f ,@arg-types) : ,t ,vars* ,@(foldr append null new-body)))]
+         (let* ([new-body (foldr append null (map (expose-allocation heap-size-bytes var-types) body))]
+                [new-vars (getVars new-body)])
+           `(define (,f ,@arg-types) : ,t ,(remove-duplicates (append new-vars vars*)) ,@new-body))]
 
         [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
          (let* ([var-types (flatten-uncover-types (uncover-types e) '())]
@@ -389,4 +391,3 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
-
