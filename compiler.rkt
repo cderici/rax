@@ -25,8 +25,8 @@
 
 ;; R5 -> R5
 (define uniquify
-  (lambda (alist)
-    (lambda (e)
+  (λ (alist)
+    (λ (e)
       (match e
         [`(void)      e]
         [(? integer?) e]
@@ -37,6 +37,11 @@
                            (cdr idNewID)))]
         [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
+        [`(lambda: ([,args : ,tys] ...) :,ty-ret ,body)
+         (let* ([new-args (map (curry gensym) args)]
+                [assocs (map cons args new-args)]
+                [new-arg-tys (map (λ (a t) `[,a : ,t]) new-args tys)])
+         `(lambda: (,@new-arg-tys) : ,ty-ret ,((uniquify (append assocs alist)) body)))]
         [`(define ,(list fun `[,args : ,tys] ...) : ,ty-ret ,body)
          (let* ([new-args    (map gensym args)]
                 [assocs      (map cons args new-args)]
