@@ -37,7 +37,7 @@
                            (cdr idNewID)))]
         [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
                                   `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
-        [`(lambda: ([,args : ,tys] ...) :,ty-ret ,body)
+        [`(lambda: ([,args : ,tys] ...) : ,ty-ret ,body)
          (let* ([new-args (map (curry gensym) args)]
                 [assocs (map cons args new-args)]
                 [new-arg-tys (map (λ (a t) `[,a : ,t]) new-args tys)])
@@ -69,7 +69,7 @@
 
 ;; R5 -> R5
 (define reveal-functions
-  (lambda (locals)
+  (λ (locals)
     (match-lambda
       [(and f (? symbol?)) (if (set-member? locals f)
                                f
@@ -81,6 +81,9 @@
        `(if ,((reveal-functions locals) cnd)
             ,((reveal-functions locals) thn)
             ,((reveal-functions locals) els))]
+      [`(lambda: ([,args : ,tys] ...) : ,ty-ret ,body)
+       (let ([arg-tys (map (λ (a t) `[,a : ,t]) args tys)])
+         `(lambda: (,@arg-tys) : ,ty-ret ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args)) body)))]
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        `(define ,args : ,ty-ret
           ,((reveal-functions (set-union (list->set arg1) locals)) body))]
