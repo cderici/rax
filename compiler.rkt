@@ -215,17 +215,16 @@
 ;; C3 -> C3
 ;; expose-allocation (after flatten)
 (define expose-allocation
-  (lambda (heap-size-bytes var-types)
+  (lambda (heap-size-bytes)
     (lambda (e)
       (match e
-        [`(assign ,lhs (vector ,e ...))
+        [`(assign ,lhs (has-type (vector ,e ...) ,t))
          (let* ([len (length e)]
                 [bytes (+ 8 (* len 8))])
            `((if (collection-needed? ,bytes)
                  ((collect ,bytes))
                  ())
-             (assign ,lhs (allocate ,len ,(cdr (let ([j (assv lhs var-types)])
-                                                 (if (not j) (error 'expose-allocation (format "not found var-type of : ~a" lhs)) j)))))
+             (assign ,lhs (allocate ,len ,t))
              ,@(map (lambda (vector-element position)
                       (let ([void-var (string->symbol (string-append "void." (begin (set! void-count (add1 void-count))
                                                                                     (number->string void-count))))])
@@ -233,17 +232,15 @@
                     e (range len))))]
 
         [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
-         (let* ([new-body (foldr append null (map (expose-allocation heap-size-bytes var-types) body))]
+         (let* ([new-body (foldr append null (map (expose-allocation heap-size-bytes) body))]
                 [new-vars (getVars new-body)])
            `(define (,f ,@arg-types) : ,t ,(remove-duplicates (append new-vars vars*)) ,@new-body))]
 
         [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
-         (let* ([var-types (flatten-uncover-types (uncover-types e) '())]
-                [new-defines (map (expose-allocation heap-size-bytes var-types) defs)]
-                [new-main-assignments (foldr append null (map (expose-allocation heap-size-bytes var-types) main-assignments))]
-                [new-vars (remove-duplicates (append (getVars new-main-assignments) (foldr append null (map getVars new-defines))))]
-                [new-var-types (flatten-uncover-types (uncover-types `(program ,new-vars (type ,t) (defines ,@new-defines) ,@new-main-assignments (return ,final-e))) '())])
-           `(program ,new-var-types (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
+         (let* ([new-defines (map (expose-allocation heap-size-bytes) defs)]
+                [new-main-assignments (foldr append null (map (expose-allocation heap-size-bytes) main-assignments))]
+                [new-vars (remove-duplicates (append (getVars new-main-assignments) (foldr append null (map getVars new-defines))))])
+           `(program ,vars (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
 
         [else `(,e)]))))
 
@@ -482,7 +479,7 @@
 (define r3-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
@@ -495,7 +492,7 @@
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
@@ -509,7 +506,7 @@
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("convert-to-closures" ,convert-to-closures ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
