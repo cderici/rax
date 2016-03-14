@@ -149,11 +149,11 @@
             (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
 
          ;; +, -, (read), not, eq?
-        [`(has-type (,op ,es ...) ,t)
+        [`(has-type (,op ,es ...) ,t-cnd)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
            (let ((newVar (gensym `tmp.)))
              (values newVar (append (apply append assignments)
-                                    (list `(assign ,newVar (,op ,@flats)))))))]
+                                    (list `(assign ,newVar (has-type (,op ,@flats) ,t-cnd)))))))]
         ;; values
         [`(has-type ,n ,t)
          (cond
