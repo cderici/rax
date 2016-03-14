@@ -28,7 +28,7 @@
          (match-let* ([new-env (append (map cons xs ty-args) env)]
                       [(and body^ `(has-type ,_ ,ty-body)) ((typecheck new-env) body)])
            (if (equal? ty-ret ty-body)
-               `(has-type (lambda: ,args : ,ty-ret ,body^) `(,@ty-args -> ,ty-ret))
+               `(has-type (lambda: ,args : ,ty-ret ,body^) (,@ty-args -> ,ty-ret))
                (type-error ty-ret ty-body body expr)))]
         [`(let ([,x ,e]) ,body)
          (match-let* ([(and e^ `(has-type ,_ ,t)) ((typecheck env) e)]
@@ -121,7 +121,7 @@
            (match ty-rator
              [(list tys-rator-args ... -> ty-rator-ret)
               (if (equal? tys-rator-args tys-rands)
-                  `(has-type (,exp-rator^ ,@exp-rands) ,ty-rator-ret)
+                  `(has-type (,exp-rator^ ,@exp-rands^) ,ty-rator-ret)
                   (type-error-fun-args exp-rator
                                        `(,@tys-rator-args -> ,ty-rator-ret)
                                        tys-rands
