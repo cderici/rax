@@ -144,26 +144,26 @@
                   )
        (cons `(define (,fun ,@new-args) : ,ty-ret ,body^)
              defs))]
-    [(list `app rator rands ...)
+    [`(has-type (app ,rator ,rands ...) ,t)
      (match-let ([(cons rator^ defs1)            (closure-worker rator)]
                  [(list (cons rands^ defs2) ...) (map closure-worker rands)]
                  [tmp                            (gensym 'closure_app_temp)])
-       (cons `(let ([,tmp ,rator^])
-                (app (vector-ref ,tmp 0) ,tmp ,@rands^))
+       (cons `(has-type (let ([,tmp ,rator^])
+                          (app (vector-ref ,tmp 0) ,tmp ,@rands^)) ,t)
              (append defs1 (shallow-flatten defs2))))]
-    [`(function-ref ,f) (cons `(vector (function-ref ,f)) `())]
-    [`(let ([,x ,e]) ,body)
+    [`(has-type (function-ref ,f) ,t) (cons `(has-type (vector (function-ref ,f)) ,t) `())] ;; should it be (has-type (vector (func-ref f)) (Vector ....))?
+    [`(has-type (let ([,x ,e]) ,body) ,t)
      (match-let ([(cons e^    defs1) (closure-worker e)]
                  [(cons body^ defs2) (closure-worker body)])
-       (cons `(let ([,x ,e^]) ,body^)
+       (cons `(has-type (let ([,x ,e^]) ,body^) ,t)
              (append defs1 defs2)))]
-    [`(if ,cnd ,thn ,els)
+    [`(has-type (if ,cnd ,thn ,els) ,t)
      (match-let ([(cons cnd^ defs1) (closure-worker cnd)]
                  [(cons thn^ defs2) (closure-worker thn)]
                  [(cons els^ defs3) (closure-worker els)])
-       (cons `(if ,cnd^ ,thn^ ,els^)
+       (cons `(has-type (if ,cnd^ ,thn^ ,els^) ,t)
              (append defs1 defs2 defs3)))]
-    [(and lam `(lambda: ,(list args ...) : ,ty-ret ,body))
+    [(and lam `(has-type (lambda: ,(list args ...) : ,ty-ret ,body) ,t))
      (match-let* ([name (gensym "lam")]
                   [clos (gensym "clos_param_lam")]
                   [freevars (fvs lam)]
@@ -175,13 +175,13 @@
                                   (- n 1))])
                           (cons body^ (length freevars))
                           freevars)])
-       (cons `(vector (function-ref ,name) ,@freevars)
+       (cons `(has-type (vector (function-ref ,name) ,@freevars) ,t)
              (cons `(define (,name [,clos : _] ,@args) : ,ty-ret
                       ,body^^) defs)))]
-    [(list op args ...)
+    [`(has-type (,op ,args ...) ,t)
      #:when (set-member? prim-names op)
      (match-let ([(list (cons args^ defs) ...) (map closure-worker args)])
-       (cons `(,op ,@args^)
+       (cons `(has-type (,op ,@args^) ,t)
              (shallow-flatten defs)))]
     [exp (cons exp `())]))
 
@@ -193,21 +193,21 @@
       ([freevars
         (λ (exp)
           (match exp
-            [(? symbol?) (set exp)]
-            [`(lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body)
+            [`(has-type (lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body) ,t)
              (set-subtract (freevars body) (list->set xs))]
-            [`(let ([,x ,e]) ,body)
+            [`(has-type (let ([,x ,e]) ,body) ,t)
              (set-subtract (set-union (freevars e) (freevars body)) (set x))]
-            [`(if ,cnd ,thn ,els)
+            [`(has-type (if ,cnd ,thn ,els) ,t)
              (set-union (freevars cnd)
                         (freevars thn)
                         (freevars els))]
-            [`(function-ref ,f) (freevars f)]
-            [(list `app rator rands ...)
+            [`(has-type (function-ref ,f) ,t) (freevars f)]
+            [`(has-type (app ,rator ,rands ...) ,t)
              (foldr set-union (set) (map freevars (cons rator rands)))]
-            [(list op args ...)
+            [`(has-type (,op ,args ...) ,t)
              #:when (set-member? prim-names op)
              (foldr set-union (set) (map freevars args))]
+            [`(has-type ,x ,t) (if (symbol? x) (set x) (set))]
             [_ (set)]))])
     (λ (e)
       (sort (set->list (freevars e)) symbol<?))))
