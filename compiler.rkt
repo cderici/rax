@@ -73,19 +73,17 @@
 (define reveal-functions
   (λ (locals)
     (match-lambda
-      [(and f (? symbol?)) (if (set-member? locals f)
-                               f
-                               `(function-ref ,f))]
-      [`(let ([,x ,e]) ,body)
-       `(let ([,x ,((reveal-functions locals) e)])
-          ,((reveal-functions (set-add locals x)) body))]
-      [`(if ,cnd ,thn ,els)
-       `(if ,((reveal-functions locals) cnd)
-            ,((reveal-functions locals) thn)
-            ,((reveal-functions locals) els))]
-      [`(lambda: ([,args : ,tys] ...) : ,ty-ret ,body)
+      [`(has-type (let ([,x ,e]) ,body) ,t)
+       `(has-type (let ([,x ,((reveal-functions locals) e)])
+                    ,((reveal-functions (set-add locals x)) body)) ,t)]
+      [`(has-type (if ,cnd ,thn ,els) ,t)
+       `(has-type (if ,((reveal-functions locals) cnd)
+                      ,((reveal-functions locals) thn)
+                      ,((reveal-functions locals) els)) ,t)]
+      [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
        (let ([arg-tys (map (λ (a t) `[,a : ,t]) args tys)])
-         `(lambda: (,@arg-tys) : ,ty-ret ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args)) body)))]
+         `(has-type (lambda: (,@arg-tys) : ,ty-ret ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args)) body)) ,t))]
+      
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        `(define ,args : ,ty-ret
           ,((reveal-functions (set-union (list->set arg1) locals)) body))]
@@ -96,12 +94,19 @@
       [`(program ,defines ... ,body) ; for debugging purposes
        `(program ,@(map (reveal-functions locals) defines)
                  ,((reveal-functions locals) body))]
-      [(list op args ...)
+
+      [`(has-type (,op ,args ...) ,t)
        #:when (set-member? prim-names op)
-       `(,op ,@(map (reveal-functions locals) args))]
-      [(list rator rands ...)
-       `(app ,((reveal-functions locals) rator)
-             ,@(map (reveal-functions locals) rands))]
+       `(has-type (,op ,@(map (reveal-functions locals) args)) ,t)]
+      [`(has-type (,rator ,rands ...) ,t)
+       `(has-type (app ,((reveal-functions locals) rator)
+                       ,@(map (reveal-functions locals) rands)) ,t)]
+      [`(has-type ,n ,t)
+       (if (symbol? n)
+           (if (set-member? locals n)
+               `(has-type ,n ,t)
+               `(has-type (function-ref ,n) ,t))
+           `(has-type ,n ,t))]
       [e e])))
 
 (define (flatten-uncover-types types-nested out)
