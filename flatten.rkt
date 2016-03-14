@@ -10,7 +10,7 @@
    (foldr (lambda (assgn vars)
             (match assgn
               [`(assign ,var ,val) (cons var vars)]
-              [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
+              [`(has-type (if (has-type (eq? ,exp1 ,exp2) Boolean) ,thns ,elss) ,t)
                (let* ([thnVars (getVars thns)]
                       [elsVars (getVars elss)]
                       [allVars (append thnVars elsVars vars)]
@@ -33,10 +33,10 @@
         (if (eqv? var oldVar)
             (cons `(assign ,newVar ,val) (cdr assignments))
             (cons (car assignments) (change-var newVar oldVar (cdr assignments))))]
-       [`(if (eq? ,e1 ,e2) ,thns ,elss)
-        (cons `(if (eq? ,(if (eqv? e1 oldVar) newVar e1) ,(if (eqv? e2 oldVar) newVar e2))
-                   ,(change-var newVar oldVar thns)
-                   ,(change-var newVar oldVar elss))
+       [`(has-type (if (has-type (eq? ,e1 ,e2) Boolean) ,thns ,elss) ,t)
+        (cons `(has-type (if (has-type (eq? ,(if (eqv? e1 oldVar) newVar e1) ,(if (eqv? e2 oldVar) newVar e2)) Boolean)
+                             ,(change-var newVar oldVar thns)
+                             ,(change-var newVar oldVar elss)) ,t)
               (change-var newVar oldVar (cdr assignments)))]
        [else (error 'change-var (format "unhandled case : ~a" (car assignments)))])]))
 
@@ -55,7 +55,6 @@
   (lambda (vars)
     (lambda (e)
       (match e
-        ;; values
         [`(void)      (values e '())]
         [(? boolean?) (values e '())]
         [(? symbol?)  (values e '())]
@@ -66,8 +65,12 @@
            (let ([vars (getVars func-assignments)])
              `(define (,f-name ,@args) :  ,return-type ,vars ,@func-assignments (return ,func-final-exp))))]
 
+        ;; ;; function-ref
+        ;; [`(function-ref ,f)
+        ;;  (let ((newVar (gensym `tmp.)))
+        ;;    (values newVar (list `(assign ,newVar (function-ref ,f)))))]
         ;; let
-        [`(let ([,x ,e]) ,body)
+        [`(has-type (let ([,x ,e]) ,body) ,t)
          (let-values ([(flat-e assgn-e) ((flatten vars) e)]
                       [(flat-body assgn-body) ((flatten (cons x vars)) body)])
            (cond
@@ -82,65 +85,85 @@
              (else
               (values flat-body (cons `(assign ,x ,flat-e) assgn-body)))))]
         ;; and
-        [`(and ,exp1 ,exp2) ((flatten vars) `(if ,exp1 ,exp2 #f))]
+        [`(has-type (and ,exp1 ,exp2) ,t) ((flatten vars) `(has-type (if ,exp1 ,exp2 #f) ,t))]
         ;; if - optimizing
-        [`(if ,cnd ,thn ,els)
-           (match cnd
-             [(? boolean?)
-              (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
-                           [(flat-thn statements-thn) ((flatten vars) thn)]
-                           [(flat-els statements-els) ((flatten vars) els)])
-                (if cnd
-                    (values flat-thn statements-thn)
-                    (values flat-els statements-els)))]
-             [(? symbol?)
-              ((flatten vars) `(if (eq? #t ,cnd) ,thn ,els))]
-             ;; if 'not' flipping the branches
-             [`(not ,exp) ((flatten vars) `(if ,exp ,els ,thn))]
-             ;; getting rid of let
-             [`(let ([,var ,exp]) ,body)
-              (let-values ([(flat-exp statements-exp) ((flatten vars) exp)]
-                           [(flat-new-if statements-new-if) ((flatten vars) `(if ,body ,thn ,els))])
-                (let ([new-exp-statements (if (null? statements-exp)
-                                              `((assign ,var ,flat-exp))
-                                              (change-var var flat-exp statements-exp))])
-                  (values flat-new-if (append new-exp-statements
-                                              statements-new-if))))]
-             ;; cnd is 'and'
-             [`(and ,exp1 ,exp2)
-              ((flatten vars) `(if (if ,exp1 ,exp2 #f) ,thn ,els))]
-             ;; cnd is already an eq?
-             [`(eq? ,e1 ,e2)
-              (let-values ([(flat-e1 statements-e1) ((flatten vars) e1)]
-                           [(flat-e2 statements-e2) ((flatten vars) e2)]
-                           [(flat-thn statements-thn) ((flatten vars) thn)]
-                           [(flat-els statements-els) ((flatten vars) els)])
-                (let ([newIfVar (gensym `if.)])
-                  (values newIfVar (append statements-e1
-                                           statements-e2
-                                           `((if (eq? ,flat-e1 ,flat-e2)
-                                                 ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
-                                                 ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
+        [`(has-type (if ,cnd ,thn ,els) ,t)
+         (match cnd           
+           ;; if 'not' flipping the branches
+           [`(has-type (not ,exp) ,t-cnd) ((flatten vars) `(has-type (if ,exp ,els ,thn) ,t))]
+           ;; getting rid of let
+           [`(has-type (let ([,var ,exp]) ,body) ,t-cnd)
+            (let-values ([(flat-exp statements-exp) ((flatten vars) exp)]
+                         [(flat-new-if statements-new-if) ((flatten vars) `(has-type (if ,body ,thn ,els) ,t))])
+              (let ([new-exp-statements (if (null? statements-exp)
+                                            `((assign ,var ,flat-exp))
+                                            (change-var var flat-exp statements-exp))])
+                (values flat-new-if (append new-exp-statements
+                                            statements-new-if))))]
+           ;; cnd is 'and'
+           [`(has-type (and ,exp1 ,exp2) ,t-cnd)
+            ((flatten vars) `(has-type (if (has-type (if ,exp1 ,exp2 #f) Boolean) ,thn ,els) ,t))]
+           ;; cnd is already an eq?
+           [`(has-type (eq? ,e1 ,e2) ,t-cnd)
+            (let-values ([(flat-e1 statements-e1) ((flatten vars) e1)]
+                         [(flat-e2 statements-e2) ((flatten vars) e2)]
+                         [(flat-thn statements-thn) ((flatten vars) thn)]
+                         [(flat-els statements-els) ((flatten vars) els)])
+              (let ([newIfVar (gensym `if.)])
+                (values newIfVar (append statements-e1
+                                         statements-e2
+                                         `((has-type (if (has-type (eq? ,flat-e1 ,flat-e2) Boolean)
+                                                         ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
+                                                         ,(append statements-els `((assign ,newIfVar ,flat-els)))) ,t))))))]
 
-             ;; another 'if' in there
-             [`(if ,cnd-inner ,thn-inner ,els-inner)
-              ((flatten vars) `(if ,cnd-inner
-                                   (if ,thn-inner ,thn ,els)
-                                   (if ,els-inner ,thn ,els)))]
-             ;; cnd is an app
-             [(or `(app ,_ ,_) `(vector-ref ,_ ,_))
-              ;; just producing the same if, keeping the else to be alerted when we have a new type of cnd
-              (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
-                           [(flat-thn statements-thn) ((flatten vars) thn)]
-                           [(flat-els statements-els) ((flatten vars) els)])
-                (let ([newIfVar (gensym `if.)])
-                  (values newIfVar (append statements-cnd
-                                           `((if (eq? ,flat-cnd #t)
-                                                 ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
-                                                 ,(append statements-els `((assign ,newIfVar ,flat-els)))))))))]
+           ;; another 'if' in there
+           [`(has-type (if ,cnd-inner ,thn-inner ,els-inner) ,t-cnd)
+            ((flatten vars) `(has-type (if ,cnd-inner
+                                           (has-type (if ,thn-inner ,thn ,els) ,t)
+                                           (has-type (if ,els-inner ,thn ,els) ,t)) ,t))]
+           ;; cnd is an app
+           [(or `(has-type (app ,_ ,_) ,t-cnd) `(has-type (vector-ref ,_ ,_) ,t-cnd))
+            ;; just producing the same if, keeping the else to be alerted when we have a new type of cnd
+            (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
+                         [(flat-thn statements-thn) ((flatten vars) thn)]
+                         [(flat-els statements-els) ((flatten vars) els)])
+              (let ([newIfVar (gensym `if.)])
+                (values newIfVar (append statements-cnd
+                                         `((has-type (if (has-type (eq? ,flat-cnd #t) Boolean)
+                                                         ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
+                                                         ,(append statements-els `((assign ,newIfVar ,flat-els)))) ,t))))))]
+           [`(has-type ,n ,t-cnd)
+            (cond
+              ((boolean? n)
+               (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
+                            [(flat-thn statements-thn) ((flatten vars) thn)]
+                            [(flat-els statements-els) ((flatten vars) els)])
+                 (if cnd
+                     (values flat-thn statements-thn)
+                     (values flat-els statements-els))))
+              ((symbol? n)
+               ((flatten vars) `(has-type (if (has-type (eq? #t ,cnd) Boolean) ,thn ,els) ,t)))
+              (else (error 'optimizing-if (format "check this : ~a" e))))]
 
-             [else
-              (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
+           [else
+            (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
+
+         ;; +, -, (read), not, eq?
+        [`(has-type (,op ,es ...) ,t)
+         (let-values ([(flats assignments) (map2 (flatten vars) es)])
+           (let ((newVar (gensym `tmp.)))
+             (values newVar (append (apply append assignments)
+                                    (list `(assign ,newVar (,op ,@flats)))))))]
+        ;; values
+        [`(has-type ,n ,t)
+         (cond
+           [(or (equal? n `(void))
+                (boolean? n)
+                (symbol? n)
+                (integer? n))
+            (values e '())]
+           [else (error 'flatten-values (format "check : ~a\n" e))])]
+
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])

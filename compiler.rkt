@@ -171,7 +171,7 @@
                   [(cons body^^ _)
                    (foldr (match-lambda**
                            [(freevar (cons b n))
-                            (cons `(let ([,freevar (vector-ref ,clos ,n)]) ,b)
+                            (cons `(has-type (let ([,freevar (vector-ref ,clos ,n)]) ,b) ,ty-ret)
                                   (- n 1))])
                           (cons body^ (length freevars))
                           freevars)])
@@ -516,3 +516,9 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
+
+
+
+
+
+
