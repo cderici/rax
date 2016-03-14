@@ -171,7 +171,7 @@
                      (movq ,arg-exp (offset (reg r11) ,(* 8 (+ n 1))))
                      (movq (int 0) (var ,var))))]
 
-                [else (error 'select-instructions "don't know how to handle this rhs~a")]) new-assignments)
+                [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]) new-assignments)
              new-added-vars))]
 
          ;; initialize

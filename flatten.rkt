@@ -122,7 +122,7 @@
                                            (has-type (if ,thn-inner ,thn ,els) ,t)
                                            (has-type (if ,els-inner ,thn ,els) ,t)) ,t))]
            ;; cnd is an app
-           [(or `(has-type (app ,_ ,_) ,t-cnd) `(has-type (vector-ref ,_ ,_) ,t-cnd))
+           [(or `(has-type (app ,_ ,_ ,_) ,t-cnd) `(has-type (vector-ref ,_ ,_) ,t-cnd))
             ;; just producing the same if, keeping the else to be alerted when we have a new type of cnd
             (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
                          [(flat-thn statements-thn) ((flatten vars) thn)]

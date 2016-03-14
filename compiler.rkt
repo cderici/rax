@@ -149,7 +149,7 @@
                  [(list (cons rands^ defs2) ...) (map closure-worker rands)]
                  [tmp                            (gensym 'closure_app_temp)])
        (cons `(has-type (let ([,tmp ,rator^])
-                          (app (vector-ref ,tmp 0) ,tmp ,@rands^)) ,t)
+                          (has-type (app (vector-ref ,tmp 0) ,tmp ,@rands^) ,t)) ,t)
              (append defs1 (shallow-flatten defs2))))]
     [`(has-type (function-ref ,f) ,t) (cons `(has-type (vector (function-ref ,f)) ,t) `())] ;; should it be (has-type (vector (func-ref f)) (Vector ....))?
     [`(has-type (let ([,x ,e]) ,body) ,t)
@@ -516,9 +516,3 @@
                     ("lower-conditionals" ,lower-conditionals ,interp-x86)
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
-
-
-
-
-
-
