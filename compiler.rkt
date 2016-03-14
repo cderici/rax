@@ -28,20 +28,14 @@
   (λ (alist)
     (λ (e)
       (match e
-        [`(void)      e]
-        [(? integer?) e]
-        [(? boolean?) e]
-        [(? symbol?) (let ([idNewID (assv e alist)])
-                       (if (not idNewID)
-                           (error 'uniquify "something's wrong")
-                           (cdr idNewID)))]
-        [`(let ([,x ,e]) ,body) (let ([newID (gensym x)])
-                                  `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
-        [`(lambda: ([,args : ,tys] ...) : ,ty-ret ,body)
+        [`(has-type (let ([,x ,e]) ,body) ,t)         
+         (let ([newID (gensym x)])
+           `(has-type (let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)) ,t))]
+        [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
          (let* ([new-args (map (curry gensym) args)]
                 [assocs (map cons args new-args)]
                 [new-arg-tys (map (λ (a t) `[,a : ,t]) new-args tys)])
-         `(lambda: (,@new-arg-tys) : ,ty-ret ,((uniquify (append assocs alist)) body)))]
+         `(has-type (lambda: (,@new-arg-tys) : ,ty-ret ,((uniquify (append assocs alist)) body)) ,t))]
         [`(define ,(list fun `[,args : ,tys] ...) : ,ty-ret ,body)
          (let* ([new-args    (map gensym args)]
                 [assocs      (map cons args new-args)]
@@ -54,12 +48,20 @@
            `(program (type ,t)
                      ,@(map (uniquify alist^) defines)
                      ,((uniquify alist^) e)))]
-        [`(,op ,es ...)
+        [`(has-type (,op ,es ...) ,t)
          #:when (set-member? prim-names op)
-         `(,op ,@(map (uniquify alist) es))]
-        [(list rator rands ...)
-         `(,((uniquify alist) rator)
-           ,@(map (uniquify alist) rands))]))))
+         `(has-type (,op ,@(map (uniquify alist) es)) ,t)] 
+        [`(has-type (,rator ,rands ...) ,t)
+         `(has-type (,((uniquify alist) rator)
+                     ,@(map (uniquify alist) rands)) ,t)]
+        [`(has-type ,n ,t)
+         (cond
+           [(symbol? n)
+            (let ([idNewID (assv n alist)])
+              (if (not idNewID)
+                  (error 'uniquify "something's wrong")
+                  `(has-type ,(cdr idNewID) ,t)))]
+           [else e])]))))
 
 (define def-name
   (match-lambda
@@ -500,7 +502,7 @@
 (define r5-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
-                    ;; ("convert-to-closures" ,convert-to-closures ,interp-scheme)
+                    ("convert-to-closures" ,convert-to-closures ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 12800 `()) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
