@@ -109,16 +109,6 @@
            `(has-type ,n ,t))]
       [e e])))
 
-(define (flatten-uncover-types types-nested out)
-  (cond
-    ((null? types-nested) (reverse out))
-    (else (let ([f (car types-nested)])
-            (cond
-              [(symbol? f) (flatten-uncover-types '() (cons types-nested out))]
-              [(or (list? f) (pair? f)) (flatten-uncover-types (cdr types-nested) (flatten-uncover-types (car types-nested) out))]
-              [else (error 'flatten-uncover-types (format "check this out : ~a \n\nin\n\n ~a" f types-nested))])))))
-
-
 (define shallow-flatten
   (curry append-map identity))
 
@@ -265,9 +255,8 @@
        (let ([new-body (uncover-live-roots body '() '())])
          `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
 
-      [`(program ,var-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
-       (let ([vars-without-types (map car var-types)]
-             [new-defines (map uncover-call-live defs)]
+      [`(program ,vars-without-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
+       (let ([new-defines (map uncover-call-live defs)]
              [new-assignments (uncover-live-roots assignments '() '())])
          `(program ,vars-without-types (type ,t) (defines ,@new-defines) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
 
