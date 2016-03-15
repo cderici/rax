@@ -205,8 +205,8 @@
 ;; C3 -> C3
 ;; expose-allocation (after flatten)
 (define expose-allocation
-  (lambda (heap-size-bytes)
-    (lambda (e)
+  (λ (heap-size-bytes)
+    (λ (e)
       (match e
         [`(assign ,lhs (has-type (vector ,e ...) ,t))
          (let* ([len (length e)]
@@ -215,7 +215,7 @@
                  ((collect ,bytes))
                  ())
              (assign ,lhs (allocate ,len ,t))
-             ,@(map (lambda (vector-element position)
+             ,@(map (λ (vector-element position)
                       (let ([void-var (string->symbol (string-append "void." (begin (set! void-count (add1 void-count))
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
@@ -249,7 +249,7 @@
 
 ;; C3 -> C3
 (define uncover-call-live
-  (lambda (e)
+  (λ (e)
     (match e
       [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
        (let ([new-body (uncover-live-roots body '() '())])
@@ -260,7 +260,29 @@
              [new-assignments (uncover-live-roots assignments '() '())])
          `(program ,vars-without-types (type ,t) (defines ,@new-defines) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
 
+(define strip-has-types
+  (λ (e)
+    (match e
+      [`(program ,vars (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
+       (let ([new-defines (map strip-has-types defs)]
+             [new-assignments (map strip-has-types assignments)])
+         `(program ,vars (type ,t) (defines ,@new-defines) (initialize ,s ,h) ,@new-assignments (return ,final-e)))]
+      [`(define (,f ,arg-types ...) : ,t ,local-vars ,body ...)
+       `(define (,f ,@arg-types) : ,t ,local-vars ,@(map strip-has-types body))]
+      [`(assign ,var (has-type ,e ,t))
+       `(assign ,var ,(strip-has-types e))]
 
+      [`(has-type (,op ,args ...) ,t)
+       `(,op ,@(map strip-has-types args))]
+      
+      [`(has-type ,n ,t) n]
+
+      [`(,op ,args ...)
+       `(,op ,@(map strip-has-types args))]
+       
+      [else e]
+
+      )))
 
 ; x86_1* (with if-statments) -> x86_1* (without if-statements)
 (define lower-conditionals
