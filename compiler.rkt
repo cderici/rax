@@ -289,13 +289,21 @@
   (cond
     ((empty? assignments) (reverse out))
     (else (match (car assignments)
+            [`(has-type ,e ,t)
+             (let ([e-uncovered (uncover-live-roots (list e) current-lives '())])
+               (uncover-live-roots (cdr assignments) current-lives (cons `(has-type ,@e-uncovered ,t) out)))]
             [`(assign ,var (allocate ,n (Vector ,some-type ...)))
              (uncover-live-roots (cdr assignments) (cons var current-lives) (cons (car assignments) out))]
+            
             [`(if (collection-needed? ,n) ((collect ,n)) ())
              (uncover-live-roots (cdr assignments) current-lives
                                  (cons `(if (collection-needed? ,n)
                                             ((call-live-roots ,current-lives (collect ,n)))
                                             ()) out))]
+            [`(if ,c ,t ,e)
+             (let ([t-uncovered (uncover-live-roots t current-lives '())]
+                   [e-uncovered (uncover-live-roots e current-lives '())])
+               (uncover-live-roots (cdr assignments) current-lives (cons `(if ,c ,t-uncovered ,e-uncovered) out)))]
             [else (uncover-live-roots (cdr assignments) current-lives (cons (car assignments) out))]))))
 
 ;; C3 -> C3
