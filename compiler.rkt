@@ -35,7 +35,7 @@
          (let* ([new-args (map (curry gensym) args)]
                 [assocs (map cons args new-args)]
                 [new-arg-tys (map (λ (a t) `[,a : ,t]) new-args tys)])
-         `(has-type (lambda: (,@new-arg-tys) : ,ty-ret ,((uniquify (append assocs alist)) body)) ,t))]
+           `(has-type (lambda: (,@new-arg-tys) : ,ty-ret ,((uniquify (append assocs alist)) body)) ,t))]
         [`(define ,(list fun `[,args : ,tys] ...) : ,ty-ret ,body)
          (let* ([new-args    (map gensym args)]
                 [assocs      (map cons args new-args)]
@@ -94,7 +94,7 @@
       [`(program ,defines ... ,body) ; for debugging purposes
        `(program ,@(map (reveal-functions locals) defines)
                  ,((reveal-functions locals) body))]
-
+      
       [`(has-type (,op ,args ...) ,t)
        #:when (set-member? prim-names op)
        `(has-type (,op ,@(map (reveal-functions locals) args)) ,t)]
@@ -105,7 +105,7 @@
        (if (symbol? n)
            (if (set-member? locals n)
                `(has-type ,n ,t)
-               `(has-type (function-ref ,n) ,t))
+               `(has-type (function-ref (has-type ,n ,t)) ,t))
            `(has-type ,n ,t))]
       [e e])))
 
@@ -127,31 +127,48 @@
 ; R5 -> (pairof R5 defines)
 (define closure-worker
   (match-lambda
-    [`(define ,(list fun args ...) : ,ty-ret ,body)
+    [`(define ,(list fun `[,xs : ,ty-args] ...) : ,ty-ret ,body)
      (match-let* ([clos              (gensym 'clos_dummy_param)]
+                  [args              (map (λ (x ty-arg) `[,x : ,(closurize-fun-ty ty-arg)]) xs ty-args)]
                   [new-args          (cons `[,clos : _] args)]
-                  [(cons body^ defs) (closure-worker body)]
-                  )
-       (cons `(define (,fun ,@new-args) : ,ty-ret ,body^)
+                  [new-ty-ret        (closurize-fun-ty ty-ret)]
+                  [(cons body^ defs) (closure-worker body)])
+       (cons `(define (,fun ,@new-args) : ,new-ty-ret ,body^)
              defs))]
     [`(has-type (app ,rator ,rands ...) ,t)
-     (match-let ([(cons rator^ defs1)            (closure-worker rator)]
-                 [(list (cons rands^ defs2) ...) (map closure-worker rands)]
-                 [tmp                            (gensym 'closure_app_temp)])
+     (match-let* ([(cons rator^ defs1)               (closure-worker rator)]
+                  [(list (cons rands^ defs2) ...)    (map closure-worker rands)]
+                  [tmp                               (gensym 'closure_app_temp)]
+                  [`(has-type ,_ (Vector ,rator^-t)) rator^]
+                  [t^                                (closurize-fun-ty t)])
        (cons `(has-type (let ([,tmp ,rator^])
-                          (has-type (app (vector-ref ,tmp 0) ,tmp ,@rands^) ,t)) ,t)
+                          (has-type (app (has-type (vector-ref (has-type ,tmp (Vector ,rator^-t)) (has-type 0 Integer))
+                                                   ,rator^-t)
+                                         (has-type ,tmp _) ,@rands^)
+                                    ,t^))
+                        ,t^)
              (append defs1 (shallow-flatten defs2))))]
-    [`(has-type (function-ref ,f) ,t) (cons `(has-type (vector (function-ref ,f)) ,t) `())] ;; should it be (has-type (vector (func-ref f)) (Vector ....))?
+    [`(has-type (function-ref (has-type ,f (,ty-args1 ... -> ,ty-ret1))) (,ty-args2 ... -> ,ty-ret2))
+     (let ([ty-args1^ (map closurize-fun-ty ty-args1)]
+           [ty-ret1^  (closurize-fun-ty     ty-ret1)]
+           [ty-args2^ (map closurize-fun-ty ty-args2)]
+           [ty-ret2^  (closurize-fun-ty     ty-ret2)])
+       (cons `(has-type (vector (has-type (function-ref (has-type ,f (,@ty-args1^ -> ,ty-ret1)))
+                                          (_ ,@ty-args2^ -> ,ty-ret2^)))
+                        (Vector (_ ,@ty-args2^ -> ,ty-ret2^)))
+             `()))]
     [`(has-type (let ([,x ,e]) ,body) ,t)
      (match-let ([(cons e^    defs1) (closure-worker e)]
-                 [(cons body^ defs2) (closure-worker body)])
-       (cons `(has-type (let ([,x ,e^]) ,body^) ,t)
+                 [(cons body^ defs2) (closure-worker body)]
+                 [t^                 (closurize-fun-ty t)])
+       (cons `(has-type (let ([,x ,e^]) ,body^) ,t^)
              (append defs1 defs2)))]
     [`(has-type (if ,cnd ,thn ,els) ,t)
      (match-let ([(cons cnd^ defs1) (closure-worker cnd)]
                  [(cons thn^ defs2) (closure-worker thn)]
-                 [(cons els^ defs3) (closure-worker els)])
-       (cons `(has-type (if ,cnd^ ,thn^ ,els^) ,t)
+                 [(cons els^ defs3) (closure-worker els)]
+                 [t^                (closurize-fun-ty t)])
+       (cons `(has-type (if ,cnd^ ,thn^ ,els^) ,t^)
              (append defs1 defs2 defs3)))]
     [(and lam `(has-type (lambda: ,(list args ...) : ,ty-ret ,body) ,t))
      (match-let* ([name (gensym "lam")]
@@ -160,33 +177,46 @@
                   [(cons body^ defs) (closure-worker body)]
                   [(cons body^^ _)
                    (foldr (match-lambda**
-                           [(freevar (cons b n))
-                            (cons `(has-type (let ([,freevar (vector-ref ,clos ,n)]) ,b) ,ty-ret)
+                           [((cons freevar-e freevar-t) (cons b n))
+                            (cons `(has-type (let ([,freevar-e (has-type (vector-ref
+                                                                          (has-type ,clos _)
+                                                                          (has-type ,n Integer))
+                                                                         ,freevar-t)]) ,b) ,ty-ret)
                                   (- n 1))])
                           (cons body^ (length freevars))
                           freevars)])
-       (cons `(has-type (vector (function-ref ,name) ,@freevars) ,t)
+       (cons `(has-type (vector (function-ref ,name) ,@(map car freevars)) (Vector ,t))
              (cons `(define (,name [,clos : _] ,@args) : ,ty-ret
                       ,body^^) defs)))]
     [`(has-type (,op ,args ...) ,t)
      #:when (set-member? prim-names op)
-     (match-let ([(list (cons args^ defs) ...) (map closure-worker args)])
-       (cons `(has-type (,op ,@args^) ,t)
+     (match-let ([(list (cons args^ defs) ...) (map closure-worker args)]
+                 [t^                           (closurize-fun-ty t)])
+       (cons `(has-type (,op ,@args^) ,t^)
              (shallow-flatten defs)))]
-    [exp (cons exp `())]))
+    [`(has-type ,e ,t)
+     (cons `(has-type ,e ,(closurize-fun-ty t))
+           `())]))
 
-; Exp -> [Var]
-; (Invariant: output is sorted in ascending order, no duplicates)
+; Type -> Type
+(define closurize-fun-ty
+  (match-lambda
+    [`(,ty-args ... -> ,ty-res) `(Vector (_ ,@ty-args -> ,ty-res))]
+    [`(Vector ,tys ...) `(Vector ,@(map closurize-fun-ty tys))]
+    [ty ty]))
+
+; Exp -> [(Var, Type)]
+; (Invariant: output is sorted in ascending order by variables, no duplicate variable names)
 (define fvs
   (letrec
-      ; Exp -> Set Var
+      ; Exp -> Set (Var, Type)
       ([freevars
         (λ (exp)
           (match exp
             [`(has-type (lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body) ,t)
-             (set-subtract (freevars body) (list->set xs))]
-            [`(has-type (let ([,x ,e]) ,body) ,t)
-             (set-subtract (set-union (freevars e) (freevars body)) (set x))]
+             (set-subtract (freevars body) (list->set (map cons xs ty-args)))]
+            [`(has-type (let ([,x (has-type ,e ,e-t)]) ,body) ,t)
+             (set-subtract (set-union (freevars e) (freevars body)) (set (cons x e-t)))]
             [`(has-type (if ,cnd ,thn ,els) ,t)
              (set-union (freevars cnd)
                         (freevars thn)
@@ -197,10 +227,14 @@
             [`(has-type (,op ,args ...) ,t)
              #:when (set-member? prim-names op)
              (foldr set-union (set) (map freevars args))]
-            [`(has-type ,x ,t) (if (symbol? x) (set x) (set))]
+            [`(has-type ,x ,t)
+             (if (symbol? x)
+                 (set (cons x t))
+                 (set))]
             [_ (set)]))])
     (λ (e)
-      (sort (set->list (freevars e)) symbol<?))))
+      (sort (set->list (freevars e))
+            (λ (x y) symbol<? (car x) (car y))))))
 
 ;; C3 -> C3
 ;; expose-allocation (after flatten)
@@ -220,18 +254,18 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-
+        
         [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
          (let* ([new-body (foldr append null (map (expose-allocation heap-size-bytes) body))]
                 [new-vars (getVars new-body)])
            `(define (,f ,@arg-types) : ,t ,(remove-duplicates (append new-vars vars*)) ,@new-body))]
-
+        
         [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
          (let* ([new-defines (map (expose-allocation heap-size-bytes) defs)]
                 [new-main-assignments (foldr append null (map (expose-allocation heap-size-bytes) main-assignments))]
                 [new-vars (remove-duplicates (append (getVars new-main-assignments) (foldr append null (map getVars new-defines))))])
-           `(program ,vars (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
-
+           `(program ,new-vars (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
+        
         [else `(,e)]))))
 
 (define (uncover-live-roots assignments current-lives out)
@@ -254,7 +288,7 @@
       [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
        (let ([new-body (uncover-live-roots body '() '())])
          `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
-
+      
       [`(program ,vars-without-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
        (let ([new-defines (map uncover-call-live defs)]
              [new-assignments (uncover-live-roots assignments '() '())])
@@ -316,7 +350,7 @@
               `(,(format "\t.globl ~a\n" (label f))
                 ,(symbol->string (label f))
                 ":\n"
-
+                
                 ,(display-instr "pushq" "%rbp")
                 ,(display-instr "movq" "%rsp, %rbp")
                 ,(save-callee-regs instrs i wcsr)
@@ -398,13 +432,13 @@
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (error "wtf r u doin")]
-
+      
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
       [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
       [`(global-value fromspace_end) (format "~a(%rip)" (label 'fromspace_end))]
       [`(stack ,s) (format "~a(%rbp)" s)]
-
+      
       [`(function-ref ,l) (format "~a(%rip)" (label l))]
       [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
 
