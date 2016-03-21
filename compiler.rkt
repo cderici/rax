@@ -253,6 +253,12 @@
   (λ (heap-size-bytes)
     (λ (e)
       (match e
+        [`(has-type ,e ,t)
+         `((has-type ,((expose-allocation heap-size-bytes) e) ,t))]
+        [`(if ,c ,t ,e)
+         `(if ,c
+              ,(foldr append null (map (expose-allocation heap-size-bytes) t))
+              ,(foldr append null (map (expose-allocation heap-size-bytes) e)))]
         [`(assign ,lhs (has-type (vector ,e ...) ,t))
          (let* ([len (length e)]
                 [bytes (+ 8 (* len 8))])
