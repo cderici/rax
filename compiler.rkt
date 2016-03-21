@@ -170,9 +170,13 @@
                  [t^                (closurize-fun-ty t)])
        (cons `(has-type (if ,cnd^ ,thn^ ,els^) ,t^)
              (append defs1 defs2 defs3)))]
-    [(and lam `(has-type (lambda: ,(list args ...) : ,ty-ret ,body) ,t))
+    [(and lam `(has-type (lambda: [,xs : ,ty-args] ... : ,ty-ret ,body) ,t))
      (match-let* ([name (gensym "lam")]
                   [clos (gensym "clos_param_lam")]
+                  [ty-args^ (map closurize-fun-ty ty-args)]
+                  [args (map (λ (x ty-arg) `[,x : ,ty-arg]) xs ty-args^)]
+                  [ty-ret^ (closurize-fun-ty ty-ret)]
+                  [t^      (closurize-fun-ty t)]
                   [freevars (fvs lam)]
                   [(cons body^ defs) (closure-worker body)]
                   [(cons body^^ _)
@@ -185,8 +189,11 @@
                                   (- n 1))])
                           (cons body^ (length freevars))
                           freevars)])
-       (cons `(has-type (vector (function-ref ,name) ,@(map car freevars)) (Vector ,t))
-             (cons `(define (,name [,clos : _] ,@args) : ,ty-ret
+       (cons `(has-type (vector (has-type (function-ref (has-type ,name
+                                                                  (,@ty-args^ -> ,ty-ret^)))
+                                          (_ ,@ty-args^ -> ,ty-ret^)) ,@(map has-typify freevars))
+                        ,t^)
+             (cons `(define (,name [,clos : _] ,@args) : ,ty-ret^
                       ,body^^) defs)))]
     [`(has-type (,op ,args ...) ,t)
      #:when (set-member? prim-names op)
@@ -197,6 +204,10 @@
     [`(has-type ,e ,t)
      (cons `(has-type ,e ,(closurize-fun-ty t))
            `())]))
+
+(define has-typify
+  (match-lambda
+    [(cons e t) `(has-type ,e ,t)]))
 
 ; Type -> Type
 (define closurize-fun-ty
