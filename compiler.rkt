@@ -2,7 +2,7 @@
 
 (require "utilities.rkt" "interp.rkt" "testing.rkt"
          "flatten.rkt" "assign-homes.rkt" "typecheck.rkt"
-         "uncover-types.rkt" "select-inst.rkt")
+         "uncover-types.rkt" "select-inst.rkt" "has-types.rkt")
 
 (provide r1-passes
          r2-passes
@@ -259,30 +259,6 @@
        (let ([new-defines (map uncover-call-live defs)]
              [new-assignments (uncover-live-roots assignments '() '())])
          `(program ,vars-without-types (type ,t) (defines ,@new-defines) (initialize ,s ,h) ,@new-assignments (return ,final-e)))])))
-
-(define strip-has-types
-  (λ (e)
-    (match e
-      [`(program ,vars (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
-       (let ([new-defines (map strip-has-types defs)]
-             [new-assignments (map strip-has-types assignments)])
-         `(program ,vars (type ,t) (defines ,@new-defines) (initialize ,s ,h) ,@new-assignments (return ,final-e)))]
-      [`(define (,f ,arg-types ...) : ,t ,local-vars ,body ...)
-       `(define (,f ,@arg-types) : ,t ,local-vars ,@(map strip-has-types body))]
-      [`(assign ,var (has-type ,e ,t))
-       `(assign ,var ,(strip-has-types e))]
-
-      [`(has-type (,op ,args ...) ,t)
-       `(,op ,@(map strip-has-types args))]
-      
-      [`(has-type ,n ,t) n]
-
-      [`(,op ,args ...)
-       `(,op ,@(map strip-has-types args))]
-       
-      [else e]
-
-      )))
 
 ; x86_1* (with if-statments) -> x86_1* (without if-statements)
 (define lower-conditionals
