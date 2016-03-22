@@ -220,7 +220,7 @@
                (append
                 `((movq (global-value free_ptr) (var ,end-data-var))
                   (addq (int ,bytes) (var ,end-data-var))
-                  (cmpq (var ,end-data-var) (global-value fromspace_end))
+                  (cmpq (global-value fromspace_end) (var ,end-data-var))
                   (setl (byte-reg al))
                   (movzbq (byte-reg al) (var ,less-than-var))
                   (if (eq? (int 0) (var ,less-than-var))
