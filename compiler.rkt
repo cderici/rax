@@ -170,7 +170,7 @@
                  [t^                (closurize-fun-ty t)])
        (cons `(has-type (if ,cnd^ ,thn^ ,els^) ,t^)
              (append defs1 defs2 defs3)))]
-    [(and lam `(has-type (lambda: [,xs : ,ty-args] ... : ,ty-ret ,body) ,t))
+    [(and lam `(has-type (lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body) ,t))
      (match-let* ([name (gensym "lam")]
                   [clos (gensym "clos_param_lam")]
                   [ty-args^ (map closurize-fun-ty ty-args)]
