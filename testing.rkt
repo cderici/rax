@@ -66,6 +66,10 @@
     (define r4-tests
       (tests "Jeremy's R4 tests" typechecker passes interp-scheme "r4" r4-range))
 
+    (define r5-range (irange 1 12))
+    (define r5-tests
+      (tests "Jeremy's R5 tests" typechecker passes interp-scheme "r5" r5-range))
+
     (define r5c-range (irange 1 2))
     (define r5c-tests
       (tests "Ryan's R5 tests" typechecker passes interp-scheme "r5c" r5c-range))
@@ -95,6 +99,7 @@
     (r3c-tests)
     (r4-tests)
     (r4c-tests)
+    (r5-tests)
     (r5c-tests)
     (uniquify-tests)
     (flatten-tests)
