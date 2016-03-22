@@ -28,7 +28,7 @@
   (λ (alist)
     (λ (e)
       (match e
-        [`(has-type (let ([,x ,e]) ,body) ,t)         
+        [`(has-type (let ([,x ,e]) ,body) ,t)
          (let ([newID (gensym x)])
            `(has-type (let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)) ,t))]
         [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
@@ -50,7 +50,7 @@
                      ,((uniquify alist^) e)))]
         [`(has-type (,op ,es ...) ,t)
          #:when (set-member? prim-names op)
-         `(has-type (,op ,@(map (uniquify alist) es)) ,t)] 
+         `(has-type (,op ,@(map (uniquify alist) es)) ,t)]
         [`(has-type (,rator ,rands ...) ,t)
          `(has-type (,((uniquify alist) rator)
                      ,@(map (uniquify alist) rands)) ,t)]
@@ -83,7 +83,7 @@
       [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
        (let ([arg-tys (map (λ (a t) `[,a : ,t]) args tys)])
          `(has-type (lambda: (,@arg-tys) : ,ty-ret ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args)) body)) ,t))]
-      
+
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        `(define ,args : ,ty-ret
           ,((reveal-functions (set-union (list->set arg1) locals)) body))]
@@ -94,7 +94,7 @@
       [`(program ,defines ... ,body) ; for debugging purposes
        `(program ,@(map (reveal-functions locals) defines)
                  ,((reveal-functions locals) body))]
-      
+
       [`(has-type (,op ,args ...) ,t)
        #:when (set-member? prim-names op)
        `(has-type (,op ,@(map (reveal-functions locals) args)) ,t)]
@@ -271,18 +271,18 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-        
+
         [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
          (let* ([new-body (foldr append null (map (expose-allocation heap-size-bytes) body))]
                 [new-vars (getVars new-body)])
            `(define (,f ,@arg-types) : ,t ,(remove-duplicates (append new-vars vars*)) ,@new-body))]
-        
+
         [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
          (let* ([new-defines (map (expose-allocation heap-size-bytes) defs)]
                 [new-main-assignments (foldr append null (map (expose-allocation heap-size-bytes) main-assignments))]
                 [new-vars (remove-duplicates (append (getVars new-main-assignments) (foldr append null (map getVars new-defines))))])
            `(program ,new-vars (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
-        
+
         [else `(,e)]))))
 
 (define (uncover-live-roots assignments current-lives out)
@@ -294,7 +294,7 @@
                (uncover-live-roots (cdr assignments) current-lives (cons `(has-type ,@e-uncovered ,t) out)))]
             [`(assign ,var (allocate ,n (Vector ,some-type ...)))
              (uncover-live-roots (cdr assignments) (cons var current-lives) (cons (car assignments) out))]
-            
+
             [`(if (collection-needed? ,n) ((collect ,n)) ())
              (uncover-live-roots (cdr assignments) current-lives
                                  (cons `(if (collection-needed? ,n)
@@ -313,7 +313,7 @@
       [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
        (let ([new-body (uncover-live-roots body '() '())])
          `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
-      
+
       [`(program ,vars-without-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
        (let ([new-defines (map uncover-call-live defs)]
              [new-assignments (uncover-live-roots assignments '() '())])
@@ -375,7 +375,7 @@
               `(,(format "\t.globl ~a\n" (label f))
                 ,(symbol->string (label f))
                 ":\n"
-                
+
                 ,(display-instr "pushq" "%rbp")
                 ,(display-instr "movq" "%rsp, %rbp")
                 ,(save-callee-regs instrs i wcsr)
@@ -457,13 +457,13 @@
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (error "wtf r u doin")]
-      
+
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
       [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
       [`(global-value fromspace_end) (format "~a(%rip)" (label 'fromspace_end))]
       [`(stack ,s) (format "~a(%rbp)" s)]
-      
+
       [`(function-ref ,l) (format "~a(%rip)" (label l))]
       [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
 

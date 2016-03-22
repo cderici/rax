@@ -155,12 +155,10 @@
                    
                    `((movq (global-value free_ptr) (var ,var))
                      (addq (int ,(* 8 (+ len 1))) (global-value free_ptr))
-                     (movq (var ,var) (reg r11))
-                     (movq (int ,tag) (offset (reg r11) 0))))]
+                     (movq (int ,tag) (offset (var ,var) 0))))]
                 ;; vector-ref
                 [`(vector-ref ,vec ,n)  ;; ASSUMPTION: vec is always var
-                 `((movq (var ,vec) (reg r11))
-                   (movq (offset (reg r11) ,(* 8 (+ n 1))) (var ,var)))]
+                 `((movq (offset (var ,vec) ,(* 8 (+ n 1))) (var ,var)))]
                 ;; vector-set!
                 [`(vector-set! ,vec ,n ,arg)
                  (let ([arg-exp
@@ -171,8 +169,7 @@
                           [(? symbol?) `(var ,arg)]
                           [else (error 'select-intr/vector-set! "wtf?")])])
                    ;; should we check the type of the arg?
-                   `((movq (var ,vec) (reg r11))
-                     (movq ,arg-exp (offset (reg r11) ,(* 8 (+ n 1))))
+                   `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
                      (movq (int 0) (var ,var))))]
                 
                 [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]) new-assignments)
@@ -216,8 +213,8 @@
           
           (let ([end-data-var (gensym 'end-data.)]
                 [less-than-var (gensym 'lt.)])
-            (let-values ([(elss-new-ass elss-added-vars) (select-instructions-inner elss current-rootstack-var added-vars)]
-                         [(thns-new-ass thns-added-vars) (select-instructions-inner thns current-rootstack-var added-vars)]
+            (let-values ([(thns-new-ass thns-added-vars) (select-instructions-inner thns current-rootstack-var added-vars)]
+                         [(elss-new-ass elss-added-vars) (select-instructions-inner elss current-rootstack-var added-vars)]
                          [(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append
@@ -227,10 +224,10 @@
                   (setl (byte-reg al))
                   (movzbq (byte-reg al) (var ,less-than-var))
                   (if (eq? (int 0) (var ,less-than-var))
-                      ,elss-new-ass
-                      ,thns-new-ass))
+                      ,thns-new-ass
+                      ,elss-new-ass))
                 new-assignments)
-               (cons end-data-var (cons less-than-var (append elss-added-vars thns-added-vars new-added-vars))))))]
+               (cons end-data-var (cons less-than-var (append thns-added-vars elss-added-vars new-added-vars))))))]
          
          ;; if
          [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
