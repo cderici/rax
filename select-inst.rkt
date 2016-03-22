@@ -265,4 +265,4 @@
                           (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append `((movq ,e-int (reg rax))) new-assignments)
-               new-added-vars)))])))))
+               (if (equal? (car e-int) 'var) (cons e new-added-vars) new-added-vars))))])))))
