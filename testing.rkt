@@ -70,7 +70,7 @@
     (define r5-tests
       (tests "Jeremy's R5 tests" typechecker passes interp-scheme "r5" r5-range))
 
-    (define r5c-range (irange 1 2))
+    (define r5c-range (irange 1 3))
     (define r5c-tests
       (tests "Ryan's R5 tests" typechecker passes interp-scheme "r5c" r5c-range))
 
