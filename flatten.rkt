@@ -9,7 +9,7 @@
   (remove-duplicates
    (foldr (lambda (assgn vars)
             (match assgn
-              [`(assign ,var ,val) (cons var vars)]
+              [`(assign ,var ,val) (append (cons var (getVars (list val))) vars)]
               [`(has-type (if (has-type (eq? ,exp1 ,exp2) Boolean) ,thns ,elss) ,t)
                (let* ([thnVars (getVars thns)]
                       [elsVars (getVars elss)]
@@ -19,6 +19,11 @@
                  ;; we run remove-duplicates at the top level, so don't worry about the uniqueness
                  exp2-maybe)]
               [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...) (append vars* vars)]
+              
+              [`(has-type ,e ,t)
+               (if (symbol? e) (cons e vars) (append (getVars (list e)) vars))]
+
+              [`(,op ,arg ...) (append (getVars arg) vars)]
               
               [else vars]))
           '() assignments)))
