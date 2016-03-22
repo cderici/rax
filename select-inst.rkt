@@ -250,7 +250,7 @@
                 `((if (eq? ,exp1-inst ,exp2-inst)
                       ,out-thns
                       ,out-elss)) new-assignments)
-               new-added-vars)))]
+               (append added-thns added-elss new-added-vars))))]
          
          ;; return
          [`(return ,e)
