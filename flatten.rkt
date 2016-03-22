@@ -100,11 +100,16 @@
            [`(has-type (let ([,var ,exp]) ,body) Boolean)
             (let-values ([(flat-exp statements-exp) ((flatten vars) exp)]
                          [(flat-new-if statements-new-if) ((flatten vars) `(has-type (if ,body ,thn ,els) ,t))])
-              (let ([new-exp-statements (if (null? statements-exp)
-                                            `((assign ,var ,flat-exp))
-                                            (change-var var flat-exp statements-exp))])
-                (values flat-new-if (append new-exp-statements
-                                            statements-new-if))))]
+              (values flat-new-if (append statements-exp
+                                          `((assign ,var ,flat-exp))
+                                          statements-new-if)))]
+
+              ;; (let ([new-exp-statements (if (null? statements-exp)
+              ;;                               `((assign ,var ,flat-exp))
+              ;;                               (change-var var flat-exp statements-exp))])
+              ;;   (values flat-new-if (append new-exp-statements
+           ;;                               statements-new-if))))]
+           
            ;; cnd is 'and'
            [`(has-type (and ,exp1 ,exp2) Boolean)
             ((flatten vars) `(has-type (if (has-type (if ,exp1 ,exp2 (has-type #f Boolean)) Boolean) ,thn ,els) ,t))]
