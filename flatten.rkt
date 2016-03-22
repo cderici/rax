@@ -63,7 +63,7 @@
         [(? symbol?)  (values e '())]
         [(? integer?) (values e '())]
         [`(define (,f-name ,args ...) ;; args -> (arg-name : arg-type) ...
-            : ,return-type ,body ...)
+            : ,return-type ,body)
          (let-values ([(func-final-exp func-assignments) ((flatten '()) body)])
            (let ([vars (getVars func-assignments)])
              `(define (,f-name ,@args) :  ,return-type ,vars ,@func-assignments (return ,func-final-exp))))]
@@ -81,7 +81,7 @@
           (cond
             ;; flat-e is newly created
             ((and (symbol? flat-e-e) (not (memv flat-e-e vars)))
-             (values flat-body (append (change-var x flat-e assgn-e) assgn-body)))
+             (values flat-body (append assgn-e `((assign ,x ,flat-e)) assgn-body)))
             ;; flat-e is a previous variable
             ((and (symbol? flat-e-e) (memv flat-e-e vars))
              (if (not (null? assgn-e)) (error 'flatten "flat-e is a previous variable, but e is compound, what's going on?")
@@ -176,7 +176,8 @@
         
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
-         (let-values ([(flats assignments) (map2 (flatten vars) es)])
-           (let ((newVar (gensym `tmp.)))
-             (values newVar (append (apply append assignments)
-                                    (list `(assign ,newVar (,op ,@flats)))))))]))))
+         (begin (displayln "heyy" (current-output-port))
+                (let-values ([(flats assignments) (map2 (flatten vars) es)])
+                  (let ((newVar (gensym `tmp.)))
+                    (values newVar (append (apply append assignments)
+                                           (list `(assign ,newVar (,op ,@flats))))))))]))))
