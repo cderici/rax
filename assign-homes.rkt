@@ -37,8 +37,8 @@
                        (let-values ([(live-afters new-instrs last-before-dummy)
                                      (compute-liveness-sets (reverse instrs) (set) '() '())])
                          `(define (,f) ,num-vars ((,@vars ,live-afters) ,maxStack) ,@new-instrs))])])
-     (top-defs-liveness (cdr defs)
-                        (cons new-def new-defs))))))
+       (top-defs-liveness (cdr defs)
+                          (cons new-def new-defs))))))
 
 (define uncover-live
   (match-lambda
@@ -86,7 +86,7 @@
                         ;; so nothing will be written on them
                         ;; so no need for caller to save them
                         our-caller-save)
-             
+
              instr-k)]
     [else
      ; L_before(k) = (L_after(k) - W(k)) U R(k)
@@ -112,11 +112,19 @@
     [`(,op ,_ ,arg2) (variable arg2)]
     [_               (set)]))
 
-; Instruction -> Symbol
-(define written-reg
+; Instruction -> Set Symbol
+(define written-regs
   (match-lambda
-    [`(,op ,_ (reg ,r)) r]
+    [`(if ,_ ,thns ,elss)
+     (let ([worker (lambda (x y) (set-union (false->empty x) y))])
+       (set-union (foldr worker (set) (map written-regs thns))
+                  (foldr worker (set) (map written-regs elss))))]
+    [`(,op ,_ (reg ,r)) (set r)]
     [_                  #f]))
+
+(define false->empty
+  (lambda (x)
+    (if x x (set))))
 
 ; Arg -> Set Variable
 (define variable
@@ -427,6 +435,7 @@
 
 (define allocate-registers
   (lambda (numOfRegs)
+    (flush-output)
     (match-lambda
       [`(define (,f) ,num-vars ((,vars ... ,graph) ,maxStack) ,instrs ...)
        (let* ([var-nodes (prep vars)]
@@ -456,8 +465,10 @@
   (λ (instrs)
     (remove-duplicates
      (filter (curry set-member? our-callee-save)
-             (map written-reg
-                  (filter written-reg instrs))))))
+             (set->list
+              (foldr set-union (set)
+                     (map written-regs
+                          (filter written-regs instrs))))))))
 
 ;(define vars '(v w x  rax  y z))
 (define vars '(v w x y z))

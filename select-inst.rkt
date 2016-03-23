@@ -1,5 +1,7 @@
 #lang racket
 
+(require "has-types.rkt")
+
 (provide select-instructions)
 
 (define arg-registers '(rsi rdx rcx r8 r9)) ;; rdi is used for passing the rootstack variable
@@ -11,14 +13,16 @@
   (filter (λ (var) (and (symbol? var) (not (memv var toplevel-names)))) vars))
 
 (define select-instructions
-  (match-lambda
-    [`(program (,vars ...) (type ,t) (defines ,defs ...) ,assignments+return ...)
-     (begin
-       (set! toplevels defs)
-       (set! toplevel-names (map (λ (def) (car (list-ref def 1))) defs))
-       (let-values ([(new-defines define-vars max-stack) (process-defines defs)]
-                    [(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
-         `(program (,(clean-vars-hack (remove-duplicates (append vars added-vars))) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return)))]))
+  (compose1
+   (match-lambda
+     [`(program (,vars ...) (type ,t) (defines ,defs ...) ,assignments+return ...)
+      (begin
+        (set! toplevels defs)
+        (set! toplevel-names (map (λ (def) (car (list-ref def 1))) defs))
+        (let-values ([(new-defines define-vars max-stack) (process-defines defs)]
+                     [(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
+          `(program (,(clean-vars-hack (remove-duplicates (append vars added-vars))) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return)))])
+   strip-has-types)) ; Discard types; they're no longer needed
 
 (define (process-defines defines)
   (cond
@@ -148,15 +152,13 @@
                         [tag (bitwise-ior not-forward-ptr-bit
                                           (arithmetic-shift length 1)
                                           (arithmetic-shift pointer-mask 7))])
-
+                   
                    `((movq (global-value free_ptr) (var ,var))
                      (addq (int ,(* 8 (+ len 1))) (global-value free_ptr))
-                     (movq (var ,var) (reg r11))
-                     (movq (int ,tag) (offset (reg r11) 0))))]
+                     (movq (int ,tag) (offset (var ,var) 0))))]
                 ;; vector-ref
                 [`(vector-ref ,vec ,n)  ;; ASSUMPTION: vec is always var
-                 `((movq (var ,vec) (reg r11))
-                   (movq (offset (reg r11) ,(* 8 (+ n 1))) (var ,var)))]
+                 `((movq (offset (var ,vec) ,(* 8 (+ n 1))) (var ,var)))]
                 ;; vector-set!
                 [`(vector-set! ,vec ,n ,arg)
                  (let ([arg-exp
@@ -167,13 +169,12 @@
                           [(? symbol?) `(var ,arg)]
                           [else (error 'select-intr/vector-set! "wtf?")])])
                    ;; should we check the type of the arg?
-                   `((movq (var ,vec) (reg r11))
-                     (movq ,arg-exp (offset (reg r11) ,(* 8 (+ n 1))))
+                   `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
                      (movq (int 0) (var ,var))))]
-
-                [else (error 'select-instructions "don't know how to handle this rhs~a")]) new-assignments)
+                
+                [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]) new-assignments)
              new-added-vars))]
-
+         
          ;; initialize
          [`(initialize ,rootlen ,heaplen)
           (let-values ([(new-assignments new-added-vars)
@@ -184,7 +185,7 @@
                        (callq initialize)
                        (movq (global-value rootstack_begin) (var ,current-rootstack-var))) new-assignments)
              (cons current-rootstack-var new-added-vars)))]
-
+         
          [`(call-live-roots (,root-vars ...) (collect ,bytes))
           (let ([new-rootstack-var (gensym 'rootstack.)])
             (let-values ([(new-assignments new-added-vars)
@@ -194,40 +195,40 @@
                 `(;; pushing all the live roots onto the root stack
                   ,@(map (lambda (root-var offset) `(movq (var ,root-var) (offset (var ,current-rootstack-var) ,offset)))
                          root-vars (build-list (length root-vars) (lambda (x) (* x 8))))
-
+                  
                   (movq (var ,current-rootstack-var) (var ,new-rootstack-var))
                   (addq (int ,(* 8 (length root-vars))) (var ,new-rootstack-var))
                   (movq (var ,new-rootstack-var) (reg rdi))
                   (movq (int ,bytes) (reg rsi))
                   (callq collect)
-
+                  
                   ;; moving live roots back to the actual stack
                   ,@(map (lambda (offset root-var) `(movq (offset (var ,current-rootstack-var) ,offset) (var ,root-var)))
                          (build-list (length root-vars) (lambda (x) (* x 8))) root-vars))
                 new-assignments)
                (cons new-rootstack-var added-vars))))]
-
+         
          ;; (if (collection-needed? n) ((call-live-roots (,vars ...) (collect n))) ())
          [`(if (collection-needed? ,bytes) ,thns ,elss)
-
+          
           (let ([end-data-var (gensym 'end-data.)]
                 [less-than-var (gensym 'lt.)])
-            (let-values ([(elss-new-ass elss-added-vars) (select-instructions-inner elss current-rootstack-var added-vars)]
-                         [(thns-new-ass thns-added-vars) (select-instructions-inner thns current-rootstack-var added-vars)]
+            (let-values ([(thns-new-ass thns-added-vars) (select-instructions-inner thns current-rootstack-var added-vars)]
+                         [(elss-new-ass elss-added-vars) (select-instructions-inner elss current-rootstack-var added-vars)]
                          [(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append
                 `((movq (global-value free_ptr) (var ,end-data-var))
                   (addq (int ,bytes) (var ,end-data-var))
-                  (cmpq (var ,end-data-var) (global-value fromspace_end))
+                  (cmpq (global-value fromspace_end) (var ,end-data-var))
                   (setl (byte-reg al))
                   (movzbq (byte-reg al) (var ,less-than-var))
                   (if (eq? (int 0) (var ,less-than-var))
-                      ,elss-new-ass
-                      ,thns-new-ass))
+                      ,thns-new-ass
+                      ,elss-new-ass))
                 new-assignments)
-               (cons end-data-var (cons less-than-var (append elss-added-vars thns-added-vars new-added-vars))))))]
-
+               (cons end-data-var (cons less-than-var (append thns-added-vars elss-added-vars new-added-vars))))))]
+         
          ;; if
          [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
           (let ([exp1-inst (cond [(eqv? exp1 `(void)) `(int 0)]
@@ -246,8 +247,8 @@
                 `((if (eq? ,exp1-inst ,exp2-inst)
                       ,out-thns
                       ,out-elss)) new-assignments)
-               new-added-vars)))]
-
+               (append added-thns added-elss new-added-vars))))]
+         
          ;; return
          [`(return ,e)
           (let ([e-int (if (eqv? e `(void))
@@ -261,4 +262,4 @@
                           (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append `((movq ,e-int (reg rax))) new-assignments)
-               new-added-vars)))])))))
+               (if (equal? (car e-int) 'var) (cons e new-added-vars) new-added-vars))))])))))
