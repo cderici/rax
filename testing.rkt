@@ -96,12 +96,10 @@
     (r2-tests)
     (r2c-tests)
     (r3-tests)
-    #|
     (r3c-tests)
     (r4-tests)
     (r4c-tests)
     (r5-tests)
-    |#
     (r5c-tests)
     (uniquify-tests)
     (flatten-tests)
