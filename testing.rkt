@@ -2,7 +2,7 @@
 
 (require "utilities.rkt" "interp.rkt" "typecheck.rkt")
 
-(provide all-tests passes->compiler)
+(provide all-tests single-test passes->compiler)
 
 ; (debug-level 2)
 
@@ -25,6 +25,11 @@
     (lambda ()
       ; (interp-tests caption tc passes interp name range)
       (compiler-tests caption tc passes name range))))
+
+(define (single-test passes t-name t-num)
+  (begin 
+    (tests "Single Test" typechecker passes interp-scheme t-name (irange t-num t-num))
+    (displayln (format "Single test for : ~a_~a passed" t-name t-num))))
 
 (define all-tests
   (lambda (passes)
