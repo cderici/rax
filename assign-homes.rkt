@@ -7,7 +7,7 @@
  construct-move-graph!
  find-homes-to-colors
  node->list
-
+ 
  build-interference
  uncover-live
  allocate-registers
@@ -37,8 +37,8 @@
                        (let-values ([(live-afters new-instrs last-before-dummy)
                                      (compute-liveness-sets (reverse instrs) (set) '() '())])
                          `(define (,f) ,num-vars ((,@vars ,live-afters) ,maxStack) ,@new-instrs))])])
-     (top-defs-liveness (cdr defs)
-                        (cons new-def new-defs))))))
+       (top-defs-liveness (cdr defs)
+                          (cons new-def new-defs))))))
 
 (define uncover-live
   (match-lambda
@@ -112,11 +112,19 @@
     [`(,op ,_ ,arg2) (variable arg2)]
     [_               (set)]))
 
-; Instruction -> Symbol
-(define written-reg
+; Instruction -> Set Symbol
+(define written-regs
   (match-lambda
-    [`(,op ,_ (reg ,r)) r]
+    [`(if ,_ ,thns ,elss)
+     (let ([worker (lambda (x y) (set-union (false->empty x) y))])
+       (set-union (foldr worker (set) (map written-regs thns))
+                  (foldr worker (set) (map written-regs elss))))]
+    [`(,op ,_ (reg ,r)) (set r)]
     [_                  #f]))
+
+(define false->empty
+  (lambda (x)
+    (if x x (set))))
 
 ; Arg -> Set Variable
 (define variable
@@ -249,7 +257,7 @@
   (let* ([maxSatur (apply max (if (empty? saturation) '(0) saturation))]
          [candidates (range 0 (+ 2 maxSatur))]
          [chooseFrom (remq* saturation candidates)]
-
+         
          [move-related-node-names (adjacent move-graph nodeName)]
          [move-related-node-colors (foldr (lambda (nd colors)
                                             (if (and (colored? nd)
@@ -273,7 +281,7 @@
                  [maxNodeName (node-name maxSaturatedNode)]
                  [maxNodeSatur (node-satur maxSaturatedNode)]
                  [nodeColor (choose-color maxNodeName var-nodes maxNodeSatur move-graph)]
-
+                 
                  [newVars (remf (lambda (node) (symbol=? maxNodeName (node-name node))) var-nodes)]
                  [updatedVars (update-saturations newVars (adjacent inter-graph maxNodeName) nodeColor '())]
                  )
@@ -336,12 +344,12 @@
 (define (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)
   (let* ([colored-node-list (graph-coloring inter-graph var-nodes move-graph '())]
          [colors-names (map (lambda (nd) (cons (node-color nd) (node-name nd))) colored-node-list)]
-
+         
          [numColors (if (empty? colored-node-list) 0 (add1 (node-color (argmax node-color colored-node-list))))]
          [colors (range 0 numColors)]
-
+         
          [all-registers touchable-reg-list]
-
+         
          [numUsableRegs (if (> num-of-registers (length all-registers))
                             (length all-registers)
                             num-of-registers)]
@@ -456,8 +464,10 @@
   (λ (instrs)
     (remove-duplicates
      (filter (curry set-member? our-callee-save)
-             (map written-reg
-                  (filter written-reg instrs))))))
+             (set->list
+              (foldr set-union (set)
+                     (map written-regs
+                          (filter written-regs instrs))))))))
 
 ;(define vars '(v w x  rax  y z))
 (define vars '(v w x y z))
