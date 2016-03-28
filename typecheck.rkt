@@ -4,6 +4,16 @@
 
 (require "utilities.rkt")
 
+(define type-predicates (set `boolean? `integer? `vector? `procedure?))
+
+(define is-ftype
+  (match-lambda
+    [`Boolean          #t]
+    [`Integer          #t]
+    [`(Vectorof Any)   #t]
+    [`(Any ... -> Any) #t]
+    [_                 #f]))
+
 ; R5 -> Type
 (define typecheck
   (λ (env)
@@ -24,6 +34,26 @@
          `(has-type ,expr Void)]
         [`(read)
          `(has-type ,expr Integer)]
+        [`(inject ,e ,fty)
+         (if (is-ftype fty)
+             (match-let* ([(and e^ `(has-type ,_ ,ty)) ((typecheck env) e)])
+               (if (equal? ty fty)
+                   `(has-type (inject ,e^ ,fty) Any)
+                   (type-error fty ty e expr)))
+             (ftype-error fty expr))]
+        [`(project ,e ,fty)
+         (if (is-ftype fty)
+             (match-let* ([(and e^ `(has-type ,_ ,ty)) ((typecheck env) e)])
+               (if (equal? ty `Any)
+                   `(has-type (project ,e^ ,fty) ,fty)
+                   (type-error `Any ty e expr)))
+             (ftype-error fty expr))]
+        [`(,pred ,e)
+         #:when (set-member? type-predicates pred)
+         (match-let* ([(and e^ `(has-type ,_ ,ty)) ((typecheck env) e)])
+           (if (equal? ty `Any)
+               `(has-type (,pred ,e^) Boolean)
+               (type-error `Any ty e expr)))]
         [`(lambda: ,(and args `([,xs : ,ty-args] ...)) : ,ty-ret ,body)
          (match-let* ([new-env (append (map cons xs ty-args) env)]
                       [(and body^ `(has-type ,_ ,ty-body)) ((typecheck new-env) body)])
@@ -77,6 +107,8 @@
                   (match actual-ty
                     [`(Vector ,ty1 ,tys ...)
                      `(has-type (vector-ref ,vec-exp^ ,ix^) ,(list-ref (cons ty1 tys) ix))]
+                    [`(Vectorof ,ty)
+                     `(has-type (vector-ref ,vec-exp^ ,ix^) ,ty)]
                     [_ (type-error `(Vector ...) actual-ty vec-exp expr)])])]
               [_ (type-error `Integer actual-ty ix expr)])])]
         [`(vector-set! ,vec-exp ,ix ,new-val)
@@ -94,6 +126,12 @@
                        (if (equal? old-val-ty new-val-ty)
                            `(has-type (vector-set! ,vec-exp^ ,ix^ ,new-val^) Void)
                            (type-error old-val-ty new-val-ty new-val expr)))]
+                    [`(Vectorof ,ty)
+                     (match-let ([(and new-val^ `(has-type ,_ ,new-val-ty))
+                                  ((typecheck env) new-val)])
+                       (if (equal? ty new-val-ty)
+                           `(has-type (vector-set! ,vec-exp^ ,ix^ ,new-val^) Void)
+                           (type-error ty new-val-ty new-val expr)))]
                     [_ (type-error `(Vector ...) actual-ty vec-exp expr)])])]
               [_ (type-error `Integer actual-ty ix expr)])])]
         [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
@@ -160,6 +198,12 @@
                   `(has-type (,op ,e1^ ,e2^) ,res-ty)
                   (type-error arg-ty actual-ty e2 expr))])
            (type-error arg-ty actual-ty e1 expr))])))
+
+(define ftype-error
+  (λ (ty expr)
+    (error (format (unlines `("Expected an ftype, but given ~a"
+                              "In the expression:\t~a"))
+                   ty expr))))
 
 (define type-error
   (λ (expected-ty actual-ty subexpr expr)
