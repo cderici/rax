@@ -53,6 +53,16 @@
                 (find-top-calls (cdr body) toplevels))]
        [else (find-top-calls (cdr body) toplevels)]))))
 
+(define (tagof T)
+  (match T
+    ['Integer 0]
+    ['Boolean 1]
+    [`(Vector _ ...) 2]
+    [`(Vectorof _ ...) 2]
+    [`(_ ... -> _ ...) 3]
+    ['Void 4]
+    [else (error 'tagof "undefined type : ~a" T)]))
+
 (define select-instructions-inner
   (lambda (assignments+return current-rootstack-var added-vars)
     (cond
@@ -80,6 +90,7 @@
               (values `(define (,f) ,(add1 num-vars) (,(cons rootstack-local-var (append arg-names new-vars local-vars)) ,maxStack) ,@init ,@new-body)
                       new-vars
                       stack-places-num)))]
+         
          ;; assign
          [`(assign ,var ,rhs)
           (let-values ([(new-assignments new-added-vars)
@@ -108,17 +119,103 @@
                    [else (error 'select-instructions "we shouldn't have as arg to 'not' any form other than boolean or var(symbol)")])]
                 [`(eq? ,arg1 ,arg2)
                  ;; TODO : refactor
-                 (let ([arg1-instr (cond [`(void)         `(int 0)]
+                 (let ([arg1-instr (encode-arg arg1) #;(cond [(equal? arg1 `(void)) `(int 0)]
                                          [(boolean? arg1) `(int ,(if arg1 1 0))]
                                          [(integer? arg1) `(int ,arg1)]
                                          [(symbol? arg1)  `(var ,arg1)])]
-                       [arg2-instr (cond [`(void)         `(int 0)]
+                       [arg2-instr (encode-arg arg2) #;(cond [(equal? arg2 `(void)) `(int 0)]
                                          [(boolean? arg2) `(int ,(if arg2 1 0))]
                                          [(integer? arg2) `(int ,arg2)]
                                          [(symbol? arg2)  `(var ,arg2)])])
                    `((cmpq ,arg1-instr ,arg2-instr)
                      (sete (byte-reg al))
                      (movzbq (byte-reg al) (var ,var))))]
+                
+                ;; inject
+                [`(inject ,e ,T)
+                 (let-values ([(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
+                   (let* ([e-inst (encode-arg e)]
+                          [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
+                                                `((movq ,e-inst ,var)
+                                                  (salq (int 3) ,var)
+                                                  (orq (int ,(tagof T)) ,var))
+                                                `((movq ,e-inst ,var) ;; Vector or Function
+                                                  (orq (int ,(tagof T)) ,var)))])
+                     (values (append new-instructions new-assignments) (append new-added-vars added-vars))))]
+
+                ;; project
+                [`(project ,e ,T)
+                 (let-values ([(new-assignments new-added-vars)
+                               (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
+                   (let* ([e-inst (encode-arg e)]
+                          [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
+                                                `((movq ,e-inst ,var)
+                                                  (andq (int 7) ,var) ;; 7 is for anding with 111
+                                                  (if (eq? ,var (int ,(tagof T)))
+                                                      ((movq ,e-inst ,var)
+                                                       (sarq (int 3) ,var))
+                                                      ((callq exit))))
+                                                `((movq ,e-inst ,var)
+                                                  (andq (int 7) ,var)
+                                                  (if (eq? ,var (int ,(tagof T)))
+                                                      ((movq (int 3) ,var)
+                                                       (notq ,var)
+                                                       (andq ,e-inst ,var))
+                                                      ((callq exit)))))])
+                     (values (append new-instructions new-assignments) (append new-added-vars added-vars))))]
+
+                ; TAGS
+                
+                ; Integer : 000
+                ; Boolean : 001
+                ; Vector  : 010
+                ; Vectorof: 010
+                ; ... -> ... : 011
+                ; void : 100
+                
+                ;; boolean?
+                [`(boolean? ,e) ;; e is tagged val
+                 (let ([e-inst (encode-arg e)])
+                   (values (append
+                            `((movq ,e-inst ,var)
+                              (andq (int 7) ,var)
+                              (if (eq? ,var (int 1)) (int 1) (int 0))))
+                           added-vars))]
+                 
+                ;; integer?
+                [`(integer? ,e) ;; e is tagged val
+                 (let ([e-inst (encode-arg e)])
+                   (values (append
+                            `((movq ,e-inst ,var)
+                              (andq (int 7) ,var)
+                              (if (eq? ,var (int 0)) (int 1) (int 0))))
+                           added-vars))]
+                ;; vector?
+                [`(vector? ,e) ;; e is tagged val
+                 (let ([e-inst (encode-arg e)])
+                   (values (append
+                            `((movq ,e-inst ,var)
+                              (andq (int 7) ,var)
+                              (if (eq? ,var (int 2)) (int 1) (int 0))))
+                           added-vars))]
+
+                ;; procedure?
+                [`(procedure? ,e) ;; e is tagged val
+                 (let ([e-inst (encode-arg e)])
+                   (values (append
+                            `((movq ,e-inst ,var)
+                              (andq (int 7) ,var)
+                              (if (eq? ,var (int 3)) (int 1) (int 0))))
+                           added-vars))]
+
+                [`(void? ,e) ;; e is tagged val
+                 (let ([e-inst (encode-arg e)])
+                   (values (append
+                            `((movq ,e-inst ,var)
+                              (andq (int 7) ,var)
+                              (if (eq? ,var (int 4)) (int 1) (int 0))))
+                           added-vars))]
+
                 ;; function-ref
                 [`(function-ref ,f)
                  `((leaq (function-ref ,f) (var ,var)))]
@@ -227,7 +324,7 @@
                       ,thns-new-ass
                       ,elss-new-ass))
                 new-assignments)
-               (cons end-data-var (cons less-than-var (append thns-added-vars elss-added-vars new-added-vars))))))]
+               (cons end-data-var (cons less-than-var (append thns-added-vars added-vars elss-added-vars new-added-vars))))))]
          
          ;; if
          [`(if (eq? ,exp1 ,exp2) ,thns ,elss)
@@ -247,7 +344,7 @@
                 `((if (eq? ,exp1-inst ,exp2-inst)
                       ,out-thns
                       ,out-elss)) new-assignments)
-               (append added-thns added-elss new-added-vars))))]
+               (append added-thns added-elss new-added-vars added-vars))))]
          
          ;; return
          [`(return ,e)
