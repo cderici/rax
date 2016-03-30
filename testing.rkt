@@ -27,13 +27,14 @@
       (compiler-tests caption tc passes name range))))
 
 (define (single-test passes t-name t-num)
-  (begin 
+  (begin
     (tests "Single Test" typechecker passes interp-scheme t-name (irange t-num t-num))
     (displayln (format "Single test for : ~a_~a passed" t-name t-num))))
 
 (define all-tests
   (lambda (passes)
 
+    #|
     (define r0-range (irange 1 4))
     (define r0-tests
       (tests "Jeremy's tests" typechecker passes interp-scheme "r0" r0-range))
@@ -110,4 +111,12 @@
     (flatten-tests)
     (tc-tests)
     ;(torture-tests)
+    |#
+
+    (define dyn-range (irange 1 18))
+    (define dyn-tests
+      (tests "In which Ryan makes types cry :("
+             #f passes interp-scheme "dyn" dyn-range))
+
+    (dyn-tests)
     (display "all tests passed!") (newline)))
