@@ -8,22 +8,12 @@
 
 (define is-ftype
   (match-lambda
-    [`Boolean          #t]
-    [`Integer          #t]
-    [`(Vectorof Any)   #t]
-    [`(Any ... -> Any) #t]
-    [_                 #f]))
-
-; Needed since Vectorof is an ftype, but Vector is not
-(define equal-modulo-vector?
-  (λ (ty1 ty2)
-    (match* (ty1 ty2)
-      [(`(Vector ,inner-ty1s ...) `(Vectorof ,inner-ty2))
-       (andmap (λ (x) (equal? x inner-ty2)) inner-ty1s)]
-      [(`(Vectorof ,_) `(Vector ,_ ...))
-       (equal-modulo-vector? ty2 ty1)]
-      [(_ _)
-       (equal? ty1 ty2)])))
+    [`Boolean              #t]
+    [`Integer              #t]
+    [`(Vector Any Any ...) #t]
+    [`(Vectorof Any)       #t]
+    [`(Any ... -> Any)     #t]
+    [_                     #f]))
 
 ; R5 -> Type
 (define typecheck
@@ -48,7 +38,7 @@
         [`(inject ,e ,fty)
          (if (is-ftype fty)
              (match-let* ([(and e^ `(has-type ,_ ,ty)) ((typecheck env) e)])
-               (if (equal-modulo-vector? ty fty)
+               (if (equal? ty fty)
                    `(has-type (inject ,e^ ,fty) Any)
                    (type-error fty ty e expr)))
              (ftype-error fty expr))]
