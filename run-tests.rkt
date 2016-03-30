@@ -2,7 +2,7 @@
 
 (require "compiler.rkt" "testing.rkt")
 
-(define pass r5-passes)
+(define pass r7-passes)
 
 (command-line
 
