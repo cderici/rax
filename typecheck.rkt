@@ -31,6 +31,8 @@
            `(has-type (vector ,@es) (Vector ,@ts)))]
         [(? symbol?)
          `(has-type ,expr ,(lookup expr env))]
+        [`(function-ref ,(and s (? symbol?)))
+         `(has-type (function-ref ,s) ,(lookup s env))]
         [`(void)
          `(has-type ,expr Void)]
         [`(read)
@@ -152,7 +154,7 @@
                  `(program (type ,ret-ty)
                            ,@defs^
                            ,body^))))]
-        [`(,exp-rator ,exp-rands ...)
+        [`(app ,exp-rator ,exp-rands ...)
          (match-let ([(and exp-rator^ `(has-type ,_ ,ty-rator))
                       ((typecheck env) exp-rator)]
                      [(and exp-rands^ (list `(has-type ,_ ,tys-rands) ...))
@@ -160,7 +162,7 @@
            (match ty-rator
              [(list tys-rator-args ... -> ty-rator-ret)
               (if (equal? tys-rator-args tys-rands)
-                  `(has-type (,exp-rator^ ,@exp-rands^) ,ty-rator-ret)
+                  `(has-type (app ,exp-rator^ ,@exp-rands^) ,ty-rator-ret)
                   (type-error-fun-args exp-rator
                                        `(,@tys-rator-args -> ,ty-rator-ret)
                                        tys-rands

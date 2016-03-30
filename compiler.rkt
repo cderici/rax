@@ -51,7 +51,10 @@
       [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #f Boolean))
                                      ,(r7->r6 e2)
                                      ,(r7->r6 e3))]
-      [`(eq? ,e1 ,e2)           `(eq? ,(r7->r6 e1) ,(r7->r6 e2))]
+      [`(eq? ,e1 ,e2)           `(inject
+                                  (eq? ,(r7->r6 e1)
+                                       ,(r7->r6 e2))
+                                  Boolean)]
       [`(and ,e1 ,e2)           `(let ([tmp ,(r7->r6 e1)])
                                    (if (eq? tmp (inject #f Boolean))
                                        tmp
@@ -63,10 +66,11 @@
           `(define (,f ,@typed-args) : Any ,(r7-to-r6 e)))]
       [`(lambda (,xs ...) ,e)
        (let ([typed-xs (map type-as-any xs)])
-         `(lambda ,typed-xs : Any ,(r7->r6 e)))]
+         `(lambda: ,typed-xs : Any ,(r7->r6 e)))]
       [`(vector ,e ...)
-       (let ([e^ (map r7->r6 e)])
-         `(inject (vector ,@e^) (Vectorof Any)))]
+       (let ([e^ (map r7->r6 e)]
+             [anys (map (const `Any) e)])
+         `(inject (vector ,@e^) (Vector ,@anys)))]
       [`(app ,e-rator ,e-rands ...)
        (let ([anys (map (const `Any) e-rands)])
          `(app (project ,(r7->r6 e-rator) (,@anys -> Any))
@@ -74,46 +78,43 @@
       [_ expr])))
 
 (define type-as-any
-  (λ (x) `[x : Any]))
+  (λ (x) `[,x : Any]))
 
-;; R5 -> R5
+;; R7 -> R7
 (define uniquify
   (λ (alist)
     (λ (e)
       (match e
-        [`(has-type (let ([,x ,e]) ,body) ,t)
+        [`(let ([,x ,e]) ,body)
          (let ([newID (gensym x)])
-           `(has-type (let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)) ,t))]
-        [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
+           `(let ([,newID ,((uniquify alist) e)]) ,((uniquify (cons (cons x newID) alist)) body)))]
+        [`(lambda (,args ...) ,body)
          (let* ([new-args (map (curry gensym) args)]
-                [assocs (map cons args new-args)]
-                [new-arg-tys (map (λ (a t) `[,a : ,t]) new-args tys)])
-           `(has-type (lambda: (,@new-arg-tys) : ,ty-ret ,((uniquify (append assocs alist)) body)) ,t))]
-        [`(define ,(list fun `[,args : ,tys] ...) : ,ty-ret ,body)
+                [assocs (map cons args new-args)])
+           `(lambda (,@new-args) ,((uniquify (append assocs alist)) body)))]
+        [`(define ,(list fun args ...) ,body)
          (let* ([new-args    (map gensym args)]
-                [assocs      (map cons args new-args)]
-                [new-arg-tys (map (λ (a t) `[,a : ,t]) new-args tys)])
-           `(define (,fun ,@new-arg-tys) : ,ty-ret
+                [assocs      (map cons args new-args)])
+           `(define (,fun ,@new-args)
               ,((uniquify (append assocs alist)) body)))]
-        [`(program (type ,t) ,defines ... ,e)
+        [`(program ,defines ... ,e)
          (let* ([def-names (map def-name defines)]
                 [alist^    (append (map cons def-names def-names) alist)])
-           `(program (type ,t)
-                     ,@(map (uniquify alist^) defines)
+           `(program ,@(map (uniquify alist^) defines)
                      ,((uniquify alist^) e)))]
-        [`(has-type (,op ,es ...) ,t)
+        [`(,op ,es ...)
          #:when (set-member? prim-names op)
-         `(has-type (,op ,@(map (uniquify alist) es)) ,t)]
-        [`(has-type (,rator ,rands ...) ,t)
-         `(has-type (,((uniquify alist) rator)
-                     ,@(map (uniquify alist) rands)) ,t)]
-        [`(has-type ,n ,t)
+         `(,op ,@(map (uniquify alist) es))]
+        [`(,rator ,rands ...)
+         `(,((uniquify alist) rator)
+           ,@(map (uniquify alist) rands))]
+        [n
          (cond
            [(symbol? n)
             (let ([idNewID (assv n alist)])
               (if (not idNewID)
                   (error 'uniquify "something's wrong")
-                  `(has-type ,(cdr idNewID) ,t)))]
+                  (cdr idNewID)))]
            [else e])]))))
 
 (define def-name
@@ -122,44 +123,39 @@
 
 (define void-count -1)
 
-;; R5 -> R5
+;; R7 -> R7
 (define reveal-functions
   (λ (locals)
     (match-lambda
-      [`(has-type (let ([,x ,e]) ,body) ,t)
-       `(has-type (let ([,x ,((reveal-functions locals) e)])
-                    ,((reveal-functions (set-add locals x)) body)) ,t)]
-      [`(has-type (if ,cnd ,thn ,els) ,t)
-       `(has-type (if ,((reveal-functions locals) cnd)
-                      ,((reveal-functions locals) thn)
-                      ,((reveal-functions locals) els)) ,t)]
-      [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
-       (let ([arg-tys (map (λ (a t) `[,a : ,t]) args tys)])
-         `(has-type (lambda: (,@arg-tys) : ,ty-ret ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args)) body)) ,t))]
-      
-      [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
-       `(define ,args : ,ty-ret
+      [`(let ([,x ,e]) ,body)
+       `(let ([,x ,((reveal-functions locals) e)])
+          ,((reveal-functions (set-add locals x)) body))]
+      [`(if ,cnd ,thn ,els)
+       `(if ,((reveal-functions locals) cnd)
+            ,((reveal-functions locals) thn)
+            ,((reveal-functions locals) els))]
+      [`(lambda (,args ...) ,body)
+       `(lambda (,@args)
+          ,((reveal-functions (foldr (λ (a l) (set-add l a))
+                                     locals args)) body))]
+      [`(define ,(and args (list fun arg1 ...)) ,body)
+       `(define ,args
           ,((reveal-functions (set-union (list->set arg1) locals)) body))]
-      [`(program (type ,t) ,defines ... ,body)
-       `(program (type ,t)
-                 ,@(map (reveal-functions locals) defines)
-                 ,((reveal-functions locals) body))]
-      [`(program ,defines ... ,body) ; for debugging purposes
+      [`(program ,defines ... ,body)
        `(program ,@(map (reveal-functions locals) defines)
                  ,((reveal-functions locals) body))]
-      
-      [`(has-type (,op ,args ...) ,t)
+      [`(,op ,args ...)
        #:when (set-member? prim-names op)
-       `(has-type (,op ,@(map (reveal-functions locals) args)) ,t)]
-      [`(has-type (,rator ,rands ...) ,t)
-       `(has-type (app ,((reveal-functions locals) rator)
-                       ,@(map (reveal-functions locals) rands)) ,t)]
-      [`(has-type ,n ,t)
+       `(,op ,@(map (reveal-functions locals) args))]
+      [`(,rator ,rands ...)
+       `(app ,((reveal-functions locals) rator)
+             ,@(map (reveal-functions locals) rands))]
+      [n
        (if (symbol? n)
            (if (set-member? locals n)
-               `(has-type ,n ,t)
-               `(has-type (function-ref (has-type ,n ,t)) ,t))
-           `(has-type ,n ,t))]
+               n
+               `(function-ref ,n))
+           n)]
       [e e])))
 
 (define shallow-flatten
@@ -613,5 +609,18 @@
                     ("patch instructions" ,patch-instr ,interp-x86)
                     ("print x86" ,print-x86-64 #f)))
 
-(define r6-passes `todo)
-(define r7-passes `todo)
+(define r6-passes `(("typechecker"             ,typechecker               #f)
+                    ("convert-to-closures"     ,convert-to-closures       #f)
+                    ("flatten"                 ,flatten                   #f)
+                    ("expose-allocation"       ,(expose-allocation 12800) #f)
+                    ("uncover-call-live-roots" ,uncover-call-live         #f)
+                    ("select instructions"     ,select-instructions       #f)
+                    ("register-allocation"     ,(register-allocation 5)   #f)
+                    ("lower-conditionals"      ,lower-conditionals        #f)
+                    ("patch instructions"      ,patch-instr               #f)
+                    ("print x86"               ,print-x86-64              #f)))
+(define r7-passes (append
+                   `(("uniquify"               ,(uniquify '())            #f)
+                     ("reveal-functions"       ,(reveal-functions (set))  #f)
+                     ("r7->r6"                 ,r7->r6                    #f))
+                   r6-passes))
