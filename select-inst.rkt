@@ -121,6 +121,18 @@
                           [else (error 'select-instructions "we shouldn't have as arg to 'not' any form other than boolean or var(symbol)")])
                         new-assignments)
                        new-added-vars)]
+              [`(,comp-op ,arg1 ,arg2)
+               #:when (memv comp-op '(< <= > >=))
+               (let ([arg1-instr (encode-arg arg1)]
+                     [arg2-instr (encode-arg arg2)]
+                     [setter (match comp-op
+                               ['< 'setl]['<= 'setle]['> 'setg]['>= 'setge])])
+                 (values (append
+                          `((cmpq ,arg1-instr ,arg2-instr)
+                            (,setter (byte-reg al))
+                            (movzbq (byte-reg al) (var ,var)))
+                          new-assignments)
+                         new-added-vars))]
               [`(eq? ,arg1 ,arg2)
                ;; TODO : refactor
                (let ([arg1-instr (encode-arg arg1) #;(cond [(equal? arg1 `(void)) `(int 0)]
