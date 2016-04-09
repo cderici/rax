@@ -76,6 +76,9 @@
          (tc-unary-expr  `not `Boolean `Boolean e env expr)]
         [`(and ,e1 ,e2)
          (tc-binary-expr `and `Boolean `Boolean e1 e2 env expr)]
+        [`(,comp-op ,e1 ,e2)
+         #:when (memv comp-op '(< <= > >=))
+         (tc-binary-expr comp-op `Integer `Boolean e1 e2 env expr)]
         [`(if ,c ,t ,f)
          (match ((typecheck env) c)
            [(and c^ `(has-type ,_ Boolean))

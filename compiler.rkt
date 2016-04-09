@@ -22,7 +22,7 @@
          typechecker
          )
 
-(define prim-names (set `void `read `and `+ `- `not `if `eq?
+(define prim-names (set `void `read `and `+ `- `not `if `eq? '< '<= '> '>=
                         `vector `vector-ref `vector-set!))
 
 ;; R7 -> R6 (come on, it's in the freaking name)
@@ -48,9 +48,13 @@
                                    (let ([tmp2 (project ,(r7->r6 i) Integer)])
                                      (inject (vector-set! tmp1 tmp2 ,(r7->r6 e))
                                              Void)))]
-      [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #f Boolean))
+      [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #t Boolean))
                                      ,(r7->r6 e2)
                                      ,(r7->r6 e3))]
+      [`(,comp-op ,e1 ,e2)
+       #:when (memv comp-op '(< <= > >=))
+       `(inject (,comp-op (project ,(r7->r6 e1) Integer)
+                          (project ,(r7->r6 e2) Integer)) Boolean)]
       [`(eq? ,e1 ,e2)           `(inject
                                   (eq? ,(r7->r6 e1)
                                        ,(r7->r6 e2))
