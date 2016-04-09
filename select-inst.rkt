@@ -95,182 +95,198 @@
          [`(assign ,var ,rhs)
           (let-values ([(new-assignments new-added-vars)
                         (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
-            (values
-             (append
-              (match rhs
-                [`(void)      `((movq (int 0)             (var ,var)))]
-                [(? symbol?)  `((movq (var ,rhs)          (var ,var)))]
-                [(? integer?) `((movq (int ,rhs)          (var ,var)))]
-                [(? boolean?) `((movq (int ,(if rhs 1 0)) (var ,var)))]
-                [`(read) `((callq read_int) (movq (reg rax) (var ,var)))]
-                [`(- ,arg) `((movq (,(if (integer? arg) 'int 'var) ,arg) (var ,var)) (negq (var ,var)))]
-                [`(+ ,arg1 ,arg2)
-                 (cond
-                   [(equal? arg1 var) `((addq ,arg1 ,var))]
-                   [(equal? arg2 var) `((addq ,arg2 ,var))]
-                   [else
-                    `((movq (,(if (integer? arg1) 'int 'var) ,arg1) (var ,var))
-                      (addq (,(if (integer? arg2) 'int 'var) ,arg2) (var ,var)))
-                    ])]
-                [`(not ,arg) ;; arg : var|bool (kudos to the typechecker)
-                 (cond
-                   [(boolean? arg) `((movq (int ,(if arg 1 0)) (var ,var)) (xorq (int 1) (var ,var)))]
-                   [(symbol? arg) `((movq (var ,arg) (var ,var)) (xorq (int 1) (var ,var)))]
-                   [else (error 'select-instructions "we shouldn't have as arg to 'not' any form other than boolean or var(symbol)")])]
-                [`(eq? ,arg1 ,arg2)
-                 ;; TODO : refactor
-                 (let ([arg1-instr (encode-arg arg1) #;(cond [(equal? arg1 `(void)) `(int 0)]
-                                         [(boolean? arg1) `(int ,(if arg1 1 0))]
-                                         [(integer? arg1) `(int ,arg1)]
-                                         [(symbol? arg1)  `(var ,arg1)])]
-                       [arg2-instr (encode-arg arg2) #;(cond [(equal? arg2 `(void)) `(int 0)]
-                                         [(boolean? arg2) `(int ,(if arg2 1 0))]
-                                         [(integer? arg2) `(int ,arg2)]
-                                         [(symbol? arg2)  `(var ,arg2)])])
-                   `((cmpq ,arg1-instr ,arg2-instr)
-                     (sete (byte-reg al))
-                     (movzbq (byte-reg al) (var ,var))))]
-                
-                ;; inject
-                [`(inject ,e ,T)
-                 (let-values ([(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
-                   (let* ([e-inst (encode-arg e)]
-                          [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
-                                                `((movq ,e-inst ,var)
-                                                  (salq (int 3) ,var)
-                                                  (orq (int ,(tagof T)) ,var))
-                                                `((movq ,e-inst ,var) ;; Vector or Function
-                                                  (orq (int ,(tagof T)) ,var)))])
-                     (values (append new-instructions new-assignments) (append new-added-vars added-vars))))]
+            (match rhs
+              [`(void)      (values (append `((movq (int 0) (var ,var))) new-assignments) new-added-vars)]
+              [(? symbol?)  (values (append `((movq (var ,rhs) (var ,var))) new-assignments) new-added-vars)]
+              [(? integer?) (values (append `((movq (int ,rhs) (var ,var))) new-assignments) new-added-vars)]
+              [(? boolean?) (values (append `((movq (int ,(if rhs 1 0)) (var ,var))) new-assignments) new-added-vars)]
+              [`(read) (values (append `((callq read_int) (movq (reg rax) (var ,var))) new-assignments) new-added-vars)]
+              [`(- ,arg) (values (append `((movq (,(if (integer? arg) 'int 'var) ,arg) (var ,var)) (negq (var ,var))) new-assignments) new-added-vars)]
+              [`(+ ,arg1 ,arg2)
+               (values (append 
+                        (cond
+                          [(equal? arg1 var) `((addq ,arg1 ,var))]
+                          [(equal? arg2 var) `((addq ,arg2 ,var))]
+                          [else
+                           `((movq (,(if (integer? arg1) 'int 'var) ,arg1) (var ,var))
+                             (addq (,(if (integer? arg2) 'int 'var) ,arg2) (var ,var)))
+                           ])
+                        new-assignments)
+                       new-added-vars)]
+              [`(not ,arg) ;; arg : var|bool (kudos to the typechecker)
+               (values (append 
+                        (cond
+                          [(boolean? arg) `((movq (int ,(if arg 1 0)) (var ,var)) (xorq (int 1) (var ,var)))]
+                          [(symbol? arg) `((movq (var ,arg) (var ,var)) (xorq (int 1) (var ,var)))]
+                          [else (error 'select-instructions "we shouldn't have as arg to 'not' any form other than boolean or var(symbol)")])
+                        new-assignments)
+                       new-added-vars)]
+              [`(eq? ,arg1 ,arg2)
+               ;; TODO : refactor
+               (let ([arg1-instr (encode-arg arg1) #;(cond [(equal? arg1 `(void)) `(int 0)]
+                                                           [(boolean? arg1) `(int ,(if arg1 1 0))]
+                                                           [(integer? arg1) `(int ,arg1)]
+                                                           [(symbol? arg1)  `(var ,arg1)])]
+                     [arg2-instr (encode-arg arg2) #;(cond [(equal? arg2 `(void)) `(int 0)]
+                                                           [(boolean? arg2) `(int ,(if arg2 1 0))]
+                                                           [(integer? arg2) `(int ,arg2)]
+                                                           [(symbol? arg2)  `(var ,arg2)])])
+                 (values (append `((cmpq ,arg1-instr ,arg2-instr)
+                                   (sete (byte-reg al))
+                                   (movzbq (byte-reg al) (var ,var)))
+                                 new-assignments)
+                         new-added-vars))]
+              
+              ;; inject
+              [`(inject ,e ,T)
+               (let-values ([(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
+                 (let* ([e-inst (encode-arg e)]
+                        [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
+                                              `((movq ,e-inst ,var)
+                                                (salq (int 3) ,var)
+                                                (orq (int ,(tagof T)) ,var))
+                                              `((movq ,e-inst ,var) ;; Vector or Function
+                                                (orq (int ,(tagof T)) ,var)))])
+                   (values (append new-instructions new-assignments)
+                           (append new-added-vars added-vars))))]
 
-                ;; project
-                [`(project ,e ,T)
-                 (let-values ([(new-assignments new-added-vars)
-                               (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
-                   (let* ([e-inst (encode-arg e)]
-                          [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
-                                                `((movq ,e-inst ,var)
-                                                  (andq (int 7) ,var) ;; 7 is for anding with 111
-                                                  (if (eq? ,var (int ,(tagof T)))
-                                                      ((movq ,e-inst ,var)
-                                                       (sarq (int 3) ,var))
-                                                      ((callq exit))))
-                                                `((movq ,e-inst ,var)
-                                                  (andq (int 7) ,var)
-                                                  (if (eq? ,var (int ,(tagof T)))
-                                                      ((movq (int 3) ,var)
-                                                       (notq ,var)
-                                                       (andq ,e-inst ,var))
-                                                      ((callq exit)))))])
-                     (values (append new-instructions new-assignments) (append new-added-vars added-vars))))]
+              ;; project
+              [`(project ,e ,T)
+               (let-values ([(new-assignments new-added-vars)
+                             (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
+                 (let* ([e-inst (encode-arg e)]
+                        [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
+                                              `((movq ,e-inst ,var)
+                                                (andq (int 7) ,var) ;; 7 is for anding with 111
+                                                (if (eq? ,var (int ,(tagof T)))
+                                                    ((movq ,e-inst ,var)
+                                                     (sarq (int 3) ,var))
+                                                    ((callq exit))))
+                                              `((movq ,e-inst ,var)
+                                                (andq (int 7) ,var)
+                                                (if (eq? ,var (int ,(tagof T)))
+                                                    ((movq (int 3) ,var)
+                                                     (notq ,var)
+                                                     (andq ,e-inst ,var))
+                                                    ((callq exit)))))])
+                   (values (append new-instructions new-assignments)
+                           (append new-added-vars added-vars))))]
 
-                ; TAGS
-                
-                ; Integer : 000
-                ; Boolean : 001
-                ; Vector  : 010
-                ; Vectorof: 010
-                ; ... -> ... : 011
-                ; void : 100
-                
-                ;; boolean?
-                [`(boolean? ,e) ;; e is tagged val
-                 (let ([e-inst (encode-arg e)])
-                   (values (append
-                            `((movq ,e-inst ,var)
-                              (andq (int 7) ,var)
-                              (if (eq? ,var (int 1)) (int 1) (int 0))))
-                           added-vars))]
+              ; TAGS
+              
+              ; Integer : 000
+              ; Boolean : 001
+              ; Vector  : 010
+              ; Vectorof: 010
+              ; ... -> ... : 011
+              ; void : 100
+              
+              ;; boolean?
+              [`(boolean? ,e) ;; e is tagged val
+               (let ([e-inst (encode-arg e)])
+                 (values (append
+                          `((movq ,e-inst ,var)
+                            (andq (int 7) ,var)
+                            (if (eq? ,var (int 1)) (int 1) (int 0))))
+                         added-vars))]
+              
+              ;; integer?
+              [`(integer? ,e) ;; e is tagged val
+               (let ([e-inst (encode-arg e)])
+                 (values (append
+                          `((movq ,e-inst ,var)
+                            (andq (int 7) ,var)
+                            (if (eq? ,var (int 0)) (int 1) (int 0))))
+                         added-vars))]
+              ;; vector?
+              [`(vector? ,e) ;; e is tagged val
+               (let ([e-inst (encode-arg e)])
+                 (values (append
+                          `((movq ,e-inst ,var)
+                            (andq (int 7) ,var)
+                            (if (eq? ,var (int 2)) (int 1) (int 0))))
+                         added-vars))]
+
+              ;; procedure?
+              [`(procedure? ,e) ;; e is tagged val
+               (let ([e-inst (encode-arg e)])
+                 (values (append
+                          `((movq ,e-inst ,var)
+                            (andq (int 7) ,var)
+                            (if (eq? ,var (int 3)) (int 1) (int 0))))
+                         added-vars))]
+
+              [`(void? ,e) ;; e is tagged val
+               (let ([e-inst (encode-arg e)])
+                 (values (append
+                          `((movq ,e-inst ,var)
+                            (andq (int 7) ,var)
+                            (if (eq? ,var (int 4)) (int 1) (int 0))))
+                         added-vars))]
+
+              ;; function-ref
+              [`(function-ref ,f)
+               (values (append `((leaq (function-ref ,f) (var ,var))) new-assignments) new-added-vars)]
+              ;; function application
+              [`(app ,fun ,args ...)
+               (let* ([move-rootstack `((movq (var ,current-rootstack-var) (reg rdi)))]
+                      [num-vars (length args)]
+                      [stack-places-num (if (<= num-vars 5) 0 (- num-vars 5))]
+                      [register-num (if (>= num-vars 5) 5 num-vars)]
+                      [passing-to-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
+                                                 (build-list stack-places-num (lambda (n) `(stack-arg ,(- (* 8 (add1 n)) 8)))))]
+                      [move-arguments `(,@(map (lambda (param passing-to) `(movq ,(encode-arg param) ,passing-to)) args passing-to-places))])
+                 (values (append 
+                          `(,@move-rootstack
+                            ,@move-arguments
+                            (indirect-callq (var ,fun))
+                            (movq (reg rax) (var ,var)))
+                          new-assignments)
+                         new-added-vars))]
+              
+              ;; (allocate n (Vector type))
+              [`(allocate ,len (Vector ,types ...))
+               (let* ([not-forward-ptr-bit 1]
+                      [length len]
+                      [pointer-mask
+                       (string->number
+                        (string-append "#b" ;; constructing a native binary, like #b1010
+                                       (foldr string-append ""
+                                              (reverse
+                                               (map (lambda (type)
+                                                      (match type
+                                                        [`(Vector ,something ...) "1"]
+                                                        [else "0"])) types)))))]
+                      [tag (bitwise-ior not-forward-ptr-bit
+                                        (arithmetic-shift length 1)
+                                        (arithmetic-shift pointer-mask 7))])
                  
-                ;; integer?
-                [`(integer? ,e) ;; e is tagged val
-                 (let ([e-inst (encode-arg e)])
-                   (values (append
-                            `((movq ,e-inst ,var)
-                              (andq (int 7) ,var)
-                              (if (eq? ,var (int 0)) (int 1) (int 0))))
-                           added-vars))]
-                ;; vector?
-                [`(vector? ,e) ;; e is tagged val
-                 (let ([e-inst (encode-arg e)])
-                   (values (append
-                            `((movq ,e-inst ,var)
-                              (andq (int 7) ,var)
-                              (if (eq? ,var (int 2)) (int 1) (int 0))))
-                           added-vars))]
-
-                ;; procedure?
-                [`(procedure? ,e) ;; e is tagged val
-                 (let ([e-inst (encode-arg e)])
-                   (values (append
-                            `((movq ,e-inst ,var)
-                              (andq (int 7) ,var)
-                              (if (eq? ,var (int 3)) (int 1) (int 0))))
-                           added-vars))]
-
-                [`(void? ,e) ;; e is tagged val
-                 (let ([e-inst (encode-arg e)])
-                   (values (append
-                            `((movq ,e-inst ,var)
-                              (andq (int 7) ,var)
-                              (if (eq? ,var (int 4)) (int 1) (int 0))))
-                           added-vars))]
-
-                ;; function-ref
-                [`(function-ref ,f)
-                 `((leaq (function-ref ,f) (var ,var)))]
-                ;; function application
-                [`(app ,fun ,args ...)
-                 (let* ([move-rootstack `((movq (var ,current-rootstack-var) (reg rdi)))]
-                        [num-vars (length args)]
-                        [stack-places-num (if (<= num-vars 5) 0 (- num-vars 5))]
-                        [register-num (if (>= num-vars 5) 5 num-vars)]
-                        [passing-to-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
-                                                   (build-list stack-places-num (lambda (n) `(stack-arg ,(- (* 8 (add1 n)) 8)))))]
-                        [move-arguments `(,@(map (lambda (param passing-to) `(movq ,(encode-arg param) ,passing-to)) args passing-to-places))])
-                   `(,@move-rootstack
-                     ,@move-arguments
-                     (indirect-callq (var ,fun))
-                     (movq (reg rax) (var ,var))))]
-                
-                ;; (allocate n (Vector type))
-                [`(allocate ,len (Vector ,types ...))
-                 (let* ([not-forward-ptr-bit 1]
-                        [length len]
-                        [pointer-mask
-                         (string->number
-                          (string-append "#b" ;; constructing a native binary, like #b1010
-                                         (foldr string-append ""
-                                                (reverse
-                                                 (map (lambda (type)
-                                                        (match type
-                                                          [`(Vector ,something ...) "1"]
-                                                          [else "0"])) types)))))]
-                        [tag (bitwise-ior not-forward-ptr-bit
-                                          (arithmetic-shift length 1)
-                                          (arithmetic-shift pointer-mask 7))])
-                   
-                   `((movq (global-value free_ptr) (var ,var))
-                     (addq (int ,(* 8 (+ len 1))) (global-value free_ptr))
-                     (movq (int ,tag) (offset (var ,var) 0))))]
-                ;; vector-ref
-                [`(vector-ref ,vec ,n)  ;; ASSUMPTION: vec is always var
-                 `((movq (offset (var ,vec) ,(* 8 (+ n 1))) (var ,var)))]
-                ;; vector-set!
-                [`(vector-set! ,vec ,n ,arg)
-                 (let ([arg-exp
-                        (match arg
-                          [`(void)      `(int 0)]
-                          [(? integer?) `(int ,arg)]
-                          [(? boolean?) `(int ,(if arg 1 0))]
-                          [(? symbol?) `(var ,arg)]
-                          [else (error 'select-intr/vector-set! "wtf?")])])
-                   ;; should we check the type of the arg?
-                   `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
-                     (movq (int 0) (var ,var))))]
-                
-                [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]) new-assignments)
-             new-added-vars))]
+                 (values (append
+                          `((movq (global-value free_ptr) (var ,var))
+                            (addq (int ,(* 8 (+ len 1))) (global-value free_ptr))
+                            (movq (int ,tag) (offset (var ,var) 0)))
+                          new-assignments)
+                         new-added-vars))]
+              ;; vector-ref
+              [`(vector-ref ,vec ,n)  ;; ASSUMPTION: vec is always var
+               (values (append `((movq (offset (var ,vec) ,(* 8 (+ n 1))) (var ,var))) new-assignments) new-added-vars)]
+              ;; vector-set!
+              [`(vector-set! ,vec ,n ,arg)
+               (let ([arg-exp
+                      (match arg
+                        [`(void)      `(int 0)]
+                        [(? integer?) `(int ,arg)]
+                        [(? boolean?) `(int ,(if arg 1 0))]
+                        [(? symbol?) `(var ,arg)]
+                        [else (error 'select-intr/vector-set! "wtf?")])])
+                 ;; should we check the type of the arg?
+                 (values (append 
+                          `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
+                            (movq (int 0) (var ,var)))
+                          new-assignments)
+                         new-added-vars))]
+              
+              [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]))]
          
          ;; initialize
          [`(initialize ,rootlen ,heaplen)
