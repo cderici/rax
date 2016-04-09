@@ -22,7 +22,8 @@
          typechecker
          )
 
-(define prim-names (set `void `read `and `+ `- `not `if `eq? '< '<= '> '>=
+(define prim-names (set `void `read `and `+ `- `not `if `eq? `< `<= `> `>=
+                        `boolean? `vector? `procedure? `integer?
                         `vector `vector-ref `vector-set!))
 
 ;; R7 -> R6 (come on, it's in the freaking name)
@@ -51,6 +52,9 @@
       [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #t Boolean))
                                      ,(r7->r6 e2)
                                      ,(r7->r6 e3))]
+      [`(,pred? ,e)
+       #:when (memv pred? '(boolean? vector? integer? procedure?))
+       `(inject (,pred? ,(r7->r6 e)) Boolean)]
       [`(,comp-op ,e1 ,e2)
        #:when (memv comp-op '(< <= > >=))
        `(inject (,comp-op (project ,(r7->r6 e1) Integer)
