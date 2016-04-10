@@ -2,7 +2,7 @@
 
 (require "utilities.rkt" "interp.rkt" "testing.rkt"
          "flatten.rkt" "assign-homes.rkt" "typecheck.rkt"
-         "uncover-types.rkt" "select-inst.rkt" "has-types.rkt")
+         "select-inst.rkt" "has-types.rkt")
 
 (provide r1-passes
          r2-passes
