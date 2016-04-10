@@ -55,12 +55,12 @@
 
 (define (tagof T)
   (match T
-    ['Integer 0]
-    ['Boolean 1]
-    [`(Vector _ ...) 2]
-    [`(Vectorof _ ...) 2]
-    [`(_ ... -> _ ...) 3]
-    ['Void 4]
+    ['Integer          #b000]
+    ['Boolean          #b001]
+    [`(Vector _ ...)   #b010]
+    [`(Vectorof _ ...) #b010]
+    [`(_ ... -> _ ...) #b011]
+    ['Void             #b100]
     [else (error 'tagof "undefined type : ~a" T)]))
 
 (define select-instructions-inner
