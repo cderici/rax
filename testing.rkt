@@ -113,7 +113,7 @@
     ;(torture-tests)
     |#
 
-    (define dyn-range (irange 1 18))
+    (define dyn-range (irange 1 23))
     (define dyn-tests
       (tests "In which Ryan makes types cry :("
              #f passes interp-scheme "dyn" dyn-range))
