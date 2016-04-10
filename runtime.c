@@ -341,12 +341,13 @@ void print_ellipsis() {
   printf("#(...)");
 }
 
-#define ANY_TAG_MASK 3
-#define ANY_TAG_LEN 2
+#define ANY_TAG_MASK 7
+#define ANY_TAG_LEN 3
 #define ANY_TAG_INT 0
 #define ANY_TAG_BOOL 1
 #define ANY_TAG_VEC 2
 #define ANY_TAG_FUN 3
+#define ANY_TAG_VOID 4
 
 int any_tag(int64_t any) {
   return any & ANY_TAG_MASK;
@@ -378,6 +379,9 @@ void print_any(int64_t any) {
   }
   case ANY_TAG_FUN:
     printf("#<procedure>");
+    break;
+  case ANY_TAG_VOID:
+    printf("#<void>");
     break;
   }
 }
