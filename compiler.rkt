@@ -32,6 +32,7 @@
     (match expr
       [`(program ,defs ... ,e)  `(program ,@(map r7->r6 defs)
                                           ,(r7->r6 e))]
+      [`(void)                  `(inject (void) Void)]
       [(or (? fixnum?) `(read)) `(inject ,expr Integer)]
       [(? boolean?)             `(inject ,expr Boolean)]
       [`(+ ,e1 ,e2)             `(inject
