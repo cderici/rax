@@ -33,7 +33,13 @@
         [(? symbol?)
          `(has-type ,expr ,(lookup expr env))]
         [`(function-ref ,(and s (? symbol?)))
-         `(has-type (function-ref ,s) ,(lookup s env))]
+         (let ([fr-ty (lookup s env)])
+           (if (is-ftype fr-ty)
+               `(has-type (inject (has-type (function-ref ,s)
+                                            ,fr-ty)
+                                  ,fr-ty)
+                          Any)
+               (ftype-error fr-ty expr)))]
         [`(void)
          `(has-type ,expr Void)]
         [`(read)
