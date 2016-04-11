@@ -57,9 +57,9 @@
   (match T
     ['Integer          #b000]
     ['Boolean          #b001]
-    [`(Vector _ ...)   #b010]
-    [`(Vectorof _ ...) #b010]
-    [`(_ ... -> _ ...) #b011]
+    [`(Vector ,args ...)   #b010]
+    [`(Vectorof ,args ...) #b010]
+    [`(... -> ...) #b011]
     ['Void             #b100]
     [else (error 'tagof "undefined type : ~a" T)]))
 
