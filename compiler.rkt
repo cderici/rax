@@ -44,12 +44,10 @@
       [`(not ,e)                `(inject (eq? ,(r7->r6 e) (inject #f Boolean))
                                          Boolean)]
       [`(vector-ref ,e1 ,e2)    `(let ([tmp1 (project ,(r7->r6 e1) (Vectorof Any))])
-                                   (let ([tmp2 (project ,(r7->r6 e2) Integer)])
-                                     (vector-ref tmp1 tmp2)))]
+                                   (vector-ref tmp1 ,e2))]
       [`(vector-set! ,v ,i ,e)  `(let ([tmp1 (project ,(r7->r6 v) (Vectorof Any))])
-                                   (let ([tmp2 (project ,(r7->r6 i) Integer)])
-                                     (inject (vector-set! tmp1 tmp2 ,(r7->r6 e))
-                                             Void)))]
+                                   (inject (vector-set! tmp1 ,i ,(r7->r6 e))
+                                           Void))]
       [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #f Boolean))
                                      ,(r7->r6 e3)
                                      ,(r7->r6 e2))]
@@ -412,15 +410,9 @@
        (cmpq ,arg1 (reg rax)))]
     [`(movq (reg ,r) (reg ,r)) ; Kill redundant moves
      `()]
-    [`(,(and op (or `movzbq `leaq `imulq)) ,arg1 ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
+    [`(,(and op (or `movzbq `leaq)) ,arg1 ,(and arg2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_))))
      `((,op ,arg1 (reg rax))
        (movq (reg rax) ,arg2))]
-    [`(,op (offset ,o1 ,(and o2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_)))) ,arg2)
-     (append `((movq ,o2 (reg rax)))
-             (patch-instr `(,op (offset ,o1 (reg rax)) ,arg2)))]
-    [`(,op ,arg1 (offset ,o1 ,(and o2 (or `(stack ,_) `(global-value ,_) `(offset ,_ ,_)))))
-     (append `((movq ,o2 (reg rax)))
-             (patch-instr `(,op ,arg1 (offset ,o1 (reg rax)))))]
     [`(,op (offset (stack ,i) ,n) ,arg2)
      (append `((movq (stack ,i) (reg r11)))
              (patch-instr `(,op (offset (reg r11) ,n) ,arg2)))]
@@ -533,7 +525,6 @@
       [(? symbol?) (symbol->string e)]
       [`(int ,i)   (format "$~a" i)]
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
-      [`(offset (reg ,r1) (reg ,r2))  (format "0(%~a, %~a, 1)" r1 r2)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (error "wtf r u doin")]
       

@@ -161,7 +161,7 @@
                                                 (orq (int ,(tagof T)) (var ,var))))])
                    (values (append new-instructions new-assignments)
                            (append new-added-vars added-vars))))]
-
+              
               ;; project
               [`(project ,e ,T)
                (let-values ([(new-assignments new-added-vars)
@@ -183,7 +183,7 @@
                                                     ((callq exit)))))])
                    (values (append new-instructions new-assignments)
                            (append new-added-vars added-vars))))]
-
+              
               ; TAGS
               
               ; Integer : 000
@@ -218,7 +218,7 @@
                             (andq (int 7) (var ,var))
                             (if (eq? ,var (int 2)) (int 1) (int 0))))
                          added-vars))]
-
+              
               ;; procedure?
               [`(procedure? ,e) ;; e is tagged val
                (let ([e-inst (encode-arg e)])
@@ -227,7 +227,7 @@
                             (andq (int 7) (var ,var))
                             (if (eq? ,var (int 3)) (int 1) (int 0))))
                          added-vars))]
-
+              
               [`(void? ,e) ;; e is tagged val
                (let ([e-inst (encode-arg e)])
                  (values (append
@@ -235,7 +235,7 @@
                             (andq (int 7) (var ,var))
                             (if (eq? ,var (int 4)) (int 1) (int 0))))
                          added-vars))]
-
+              
               ;; function-ref
               [`(function-ref ,f)
                (values (append `((leaq (function-ref ,f) (var ,var))) new-assignments) new-added-vars)]
@@ -281,13 +281,7 @@
                          new-added-vars))]
               ;; vector-ref
               [`(vector-ref ,vec ,n)  ;; ASSUMPTION: vec is always var
-               (let ([new-var (gensym 'vecrefindex.)])
-                 (values (append
-                          `((addq (int 1) (var ,new-var))
-                            (imulq (int 8) (var ,new-var))
-                            (movq (offset (var ,vec) (var ,new-var)) (var ,var)))
-                          new-assignments)
-                         (cons new-var new-added-vars)))]
+               (values (append `((movq (offset (var ,vec) ,(* 8 (+ n 1))) (var ,var))) new-assignments) new-added-vars)]
               ;; vector-set!
               [`(vector-set! ,vec ,n ,arg)
                (let ([arg-exp
@@ -296,16 +290,13 @@
                         [(? integer?) `(int ,arg)]
                         [(? boolean?) `(int ,(if arg 1 0))]
                         [(? symbol?) `(var ,arg)]
-                        [else (error 'select-intr/vector-set! "wtf?")])]
-                     [new-var (gensym 'vecsetindex.)])
+                        [else (error 'select-intr/vector-set! "wtf?")])])
                  ;; should we check the type of the arg?
                  (values (append 
-                          `((addq (int 1) (var ,new-var))
-                            (imulq (int 8) (var ,new-var))
-                            (movq ,arg-exp (offset (var ,vec) (var ,new-var)))
+                          `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
                             (movq (int 0) (var ,var)))
                           new-assignments)
-                         (cons new-var new-added-vars)))]
+                         new-added-vars))]
               
               [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]))]
          

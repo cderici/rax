@@ -98,7 +98,7 @@
 ; Instruction -> Set Variable
 (define read-variables
   (match-lambda
-    [`(,(or `addq `subq `imulq `cmpq `salq `sarq) ,arg1 ,arg2)
+    [`(,(or `addq `subq `cmpq `salq `sarq) ,arg1 ,arg2)
      (set-union (variable arg1)
                 (variable arg2))]
     [(or `(movq ,arg1 (offset ,arg2 ,n)) `(movq (offset ,arg1 ,n) ,arg2)) (set-union (variable arg1) (variable arg2))]
@@ -177,7 +177,7 @@
                   gr)))
           graph
           live-after-set))]
-      [(or `(,(or `addq `subq `imulq) ,_ ,d) `(negq ,d) `(notq ,d))
+      [(or `(,(or `addq `subq) ,_ ,d) `(negq ,d) `(notq ,d))
        (let [(d-pl (arg-payload d))]
          (sequence-fold
           (λ (gr v)
@@ -389,33 +389,6 @@
                  ;; then it's a stack position
                  `(stack ,home-of-node)
                  (error 'varToLocStmnt "what the heck! we have a location that's neither reg, nor stack pos!"))))]
-      [`(offset (var ,varID) (var ,n-var))
-       (let* ([color-of-node*1 (assv varID nodes-colors)]
-              [color-of-node1 (if (not color-of-node*1)
-                                 (error 'varToLocStmnt "we have an unmapped node --> ~a" varID)
-                                 (cdr color-of-node*1))]
-              [home-of-node*1 (assv color-of-node1 color-location)]
-              [home-of-node1 (if (not home-of-node*1)
-                                 (error 'varToLocStmnt "we have an unmapped color!!!") (cdr home-of-node*1))]
-
-              [color-of-node*2 (assv n-var nodes-colors)]
-              [color-of-node2 (if (not color-of-node*2)
-                                 (error 'varToLocStmnt "we have an unmapped node --> ~a" n-var)
-                                 (cdr color-of-node*2))]
-              [home-of-node*2 (assv color-of-node2 color-location)]
-              [home-of-node2 (if (not home-of-node*2)
-                                 (error 'varToLocStmnt "we have an unmapped color!!!")
-                                 (cdr home-of-node*2))])
-         `(offset ,(if (symbol? home-of-node1)
-                       `(reg ,home-of-node1)
-                       (if (number? home-of-node1)
-                           `(stack ,home-of-node1)
-                           (error 'varToLocStmnt "you have couple of hours of debugging, good luck pal!")))
-                  ,(if (symbol? home-of-node2)
-                       `(reg ,home-of-node2)
-                       (if (number? home-of-node2)
-                           `(stack ,home-of-node2)
-                           (error 'varToLocStmnt "you have couple of hours of debugging, good luck pal!")))))]
       [`(offset (var ,varID) ,n)
        (let* ([color-of-node* (assv varID nodes-colors)]
               [color-of-node (if (not color-of-node*)
