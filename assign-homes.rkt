@@ -177,7 +177,7 @@
                   gr)))
           graph
           live-after-set))]
-      [(or `(,(or `addq `subq) ,_ ,d) `(negq ,d))
+      [(or `(,(or `addq `subq `mulq) ,_ ,d) `(negq ,d) `(notq ,d))
        (let [(d-pl (arg-payload d))]
          (sequence-fold
           (λ (gr v)
