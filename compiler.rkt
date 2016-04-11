@@ -43,11 +43,6 @@
                                   Integer)]
       [`(not ,e)                `(inject (eq? ,(r7->r6 e) (inject #f Boolean))
                                          Boolean)]
-      [`(vector-ref ,e1 ,e2)    `(let ([tmp1 (project ,(r7->r6 e1) (Vectorof Any))])
-                                   (vector-ref tmp1 ,e2))]
-      [`(vector-set! ,v ,i ,e)  `(let ([tmp1 (project ,(r7->r6 v) (Vectorof Any))])
-                                   (inject (vector-set! tmp1 ,i ,(r7->r6 e))
-                                           Void))]
       [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #f Boolean))
                                      ,(r7->r6 e3)
                                      ,(r7->r6 e2))]
@@ -62,10 +57,21 @@
                                   (eq? ,(r7->r6 e1)
                                        ,(r7->r6 e2))
                                   Boolean)]
-      [`(and ,e1 ,e2)           `(let ([tmp ,(r7->r6 e1)])
-                                   (if (eq? tmp (inject #f Boolean))
-                                       tmp
-                                       ,(r7->r6 e2)))]
+      [`(vector-ref ,e1 ,e2)
+       (let ([tmp1 (genlabel `tmp1)])
+         `(let ([,tmp1 (project ,(r7->r6 e1) (Vectorof Any))])
+            (vector-ref ,tmp1 ,e2)))]
+      [`(vector-set! ,v ,i ,e)
+       (let ([tmp1 (genlabel `tmp1)])
+         `(let ([,tmp1 (project ,(r7->r6 v) (Vectorof Any))])
+            (inject (vector-set! ,tmp1 ,i ,(r7->r6 e))
+                    Void)))]
+      [`(and ,e1 ,e2)
+       (let ([tmp (genlabel `tmp)])
+         `(let ([,tmp ,(r7->r6 e1)])
+            (if (eq? ,tmp (inject #f Boolean))
+                ,tmp
+                ,(r7->r6 e2))))]
       [`(let ([,x ,e1]) ,e2)    `(let ([,x ,(r7->r6 e1)])
                                    ,(r7->r6 e2))]
       [`(define (,f ,args ...) ,e)
