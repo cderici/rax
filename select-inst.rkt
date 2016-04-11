@@ -151,38 +151,35 @@
               
               ;; inject
               [`(inject ,e ,T)
-               (let-values ([(new-assignments new-added-vars) (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
-                 (let* ([e-inst (encode-arg e)]
-                        [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
-                                              `((movq ,e-inst (var ,var))
-                                                (salq (int 3) (var ,var))
-                                                (orq (int ,(tagof T)) (var ,var)))
-                                              `((movq ,e-inst (var ,var)) ;; Vector or Function
-                                                (orq (int ,(tagof T)) (var ,var))))])
-                   (values (append new-instructions new-assignments)
-                           (append new-added-vars added-vars))))]
+               (let* ([e-inst (encode-arg e)]
+                      [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
+                                            `((movq ,e-inst (var ,var))
+                                              (salq (int 3) (var ,var))
+                                              (orq (int ,(tagof T)) (var ,var)))
+                                            `((movq ,e-inst (var ,var)) ;; Vector or Function
+                                              (orq (int ,(tagof T)) (var ,var))))])
+                 (values (append new-instructions new-assignments)
+                         (append new-added-vars added-vars)))]
               
               ;; project
-              [`(project ,e ,T)
-               (let-values ([(new-assignments new-added-vars)
-                             (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
-                 (let* ([e-inst (encode-arg e)]
-                        [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
-                                              `((movq ,e-inst (var ,var))
-                                                (andq (int 7) (var ,var)) ;; 7 is for anding with 111
-                                                (if (eq? (var ,var) (int ,(tagof T)))
-                                                    ((movq ,e-inst (var ,var))
-                                                     (sarq (int 3) (var ,var)))
-                                                    ((callq exit))))
-                                              `((movq ,e-inst (var ,var))
-                                                (andq (int 7) (var ,var))
-                                                (if (eq? (var ,var) (int ,(tagof T)))
-                                                    ((movq (int 3) (var ,var))
-                                                     (notq (var ,var))
-                                                     (andq ,e-inst (var ,var)))
-                                                    ((callq exit)))))])
-                   (values (append new-instructions new-assignments)
-                           (append new-added-vars added-vars))))]
+              [`(project ,e ,T)              
+               (let* ([e-inst (encode-arg e)]
+                      [new-instructions (if (or (equal? T 'Integer) (equal? T 'Boolean) (equal? T 'Void))
+                                            `((movq ,e-inst (var ,var))
+                                              (andq (int 7) (var ,var)) ;; 7 is for anding with 111
+                                              (if (eq? (var ,var) (int ,(tagof T)))
+                                                  ((movq ,e-inst (var ,var))
+                                                   (sarq (int 3) (var ,var)))
+                                                  ((callq exit))))
+                                            `((movq ,e-inst (var ,var))
+                                              (andq (int 7) (var ,var))
+                                              (if (eq? (var ,var) (int ,(tagof T)))
+                                                  ((movq (int 3) (var ,var))
+                                                   (notq (var ,var))
+                                                   (andq ,e-inst (var ,var)))
+                                                  ((callq exit)))))])
+                 (values (append new-instructions new-assignments)
+                         (append new-added-vars added-vars)))]
               
               ; TAGS
               
@@ -239,6 +236,9 @@
               ;; function-ref
               [`(function-ref ,f)
                (values (append `((leaq (function-ref ,f) (var ,var))) new-assignments) new-added-vars)]
+
+              
+              
               ;; function application
               [`(app ,fun ,args ...)
                (let* ([move-rootstack `((movq (var ,current-rootstack-var) (reg rdi)))]
