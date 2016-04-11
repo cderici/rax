@@ -459,11 +459,17 @@
                 "\n"
                 ;; Conclusion
                 ,(display-instr "movq" "%rax, %rdi")
-                ,(print-by-type t)
+                ,(print-by-type^ t)
                 ,(restore-callee-regs instrs i wcsr)
                 ,(display-instr "movq" "$0, %rax") ; Make sure the exit code is 0!
                 ,(display-instr "popq" "%rbp")
                 ,(display-instr "retq" ""))))]))
+
+(define print-by-type^
+  (match-lambda
+    [`Any
+     (format "\tmovq\t%rax, %rdi\n\tcallq\t~a\n" (label-name "print_any"))]
+    [ty (print-by-type ty)]))
 
 (define save-callee-regs
   (λ (instrs i wcsr)
