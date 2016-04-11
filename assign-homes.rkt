@@ -7,7 +7,7 @@
  construct-move-graph!
  find-homes-to-colors
  node->list
-
+ 
  build-interference
  uncover-live
  allocate-registers
@@ -86,7 +86,7 @@
                         ;; so nothing will be written on them
                         ;; so no need for caller to save them
                         our-caller-save)
-
+             
              instr-k)]
     [else
      ; L_before(k) = (L_after(k) - W(k)) U R(k)
@@ -98,7 +98,7 @@
 ; Instruction -> Set Variable
 (define read-variables
   (match-lambda
-    [`(,(or `addq `subq `cmpq) ,arg1 ,arg2)
+    [`(,(or `addq `subq `cmpq `salq `sarq) ,arg1 ,arg2)
      (set-union (variable arg1)
                 (variable arg2))]
     [(or `(movq ,arg1 (offset ,arg2 ,n)) `(movq (offset ,arg1 ,n) ,arg2)) (set-union (variable arg1) (variable arg2))]
@@ -260,7 +260,7 @@
   (let* ([maxSatur (apply max (if (empty? saturation) '(0) saturation))]
          [candidates (range 0 (+ 2 maxSatur))]
          [chooseFrom (remq* saturation candidates)]
-
+         
          [move-related-node-names (adjacent move-graph nodeName)]
          [move-related-node-colors (foldr (lambda (nd colors)
                                             (if (and (colored? nd)
@@ -284,7 +284,7 @@
                  [maxNodeName (node-name maxSaturatedNode)]
                  [maxNodeSatur (node-satur maxSaturatedNode)]
                  [nodeColor (choose-color maxNodeName var-nodes maxNodeSatur move-graph)]
-
+                 
                  [newVars (remf (lambda (node) (symbol=? maxNodeName (node-name node))) var-nodes)]
                  [updatedVars (update-saturations newVars (adjacent inter-graph maxNodeName) nodeColor '())]
                  )
@@ -347,12 +347,12 @@
 (define (find-homes-to-colors inter-graph var-nodes move-graph num-of-registers)
   (let* ([colored-node-list (graph-coloring inter-graph var-nodes move-graph '())]
          [colors-names (map (lambda (nd) (cons (node-color nd) (node-name nd))) colored-node-list)]
-
+         
          [numColors (if (empty? colored-node-list) 0 (add1 (node-color (argmax node-color colored-node-list))))]
          [colors (range 0 numColors)]
-
+         
          [all-registers touchable-reg-list]
-
+         
          [numUsableRegs (if (> num-of-registers (length all-registers))
                             (length all-registers)
                             num-of-registers)]
