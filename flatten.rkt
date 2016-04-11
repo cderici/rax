@@ -186,8 +186,7 @@
         
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
-         (begin (displayln "heyy" (current-output-port))
-                (let-values ([(flats assignments) (map2 (flatten vars) es)])
-                  (let ((newVar (gensym `tmp.)))
-                    (values newVar (append (apply append assignments)
-                                           (list `(assign ,newVar (,op ,@flats))))))))]))))
+         (let-values ([(flats assignments) (map2 (flatten vars) es)])
+           (let ((newVar (gensym `tmp.)))
+             (values newVar (append (apply append assignments)
+                                    (list `(assign ,newVar (,op ,@flats)))))))]))))
