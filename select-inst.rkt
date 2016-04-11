@@ -284,7 +284,7 @@
                (let ([new-var (gensym 'vecrefindex.)])
                  (values (append
                           `((addq (int 1) (var ,new-var))
-                            (mulq (int 8) (var ,new-var))
+                            (imulq (int 8) (var ,new-var))
                             (movq (offset (var ,vec) (var ,new-var)) (var ,var)))
                           new-assignments)
                          (cons new-var new-added-vars)))]
@@ -301,7 +301,7 @@
                  ;; should we check the type of the arg?
                  (values (append 
                           `((addq (int 1) (var ,new-var))
-                            (mulq (int 8) (var ,new-var))
+                            (imulq (int 8) (var ,new-var))
                             (movq ,arg-exp (offset (var ,vec) (var ,new-var)))
                             (movq (int 0) (var ,var)))
                           new-assignments)
