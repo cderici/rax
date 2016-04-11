@@ -167,6 +167,14 @@
            [else
             (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
         
+        [`(has-type (,dyn ,arg ,type) ,t)
+         #:when (memv dyn '(inject project))
+         (let-values ([(flat assignments) ((flatten vars) arg)])
+           (let ((newVar (gensym 'tmp.)))
+             (values `(has-type ,newVar ,t)
+                     (append assignments
+                             (list `(assign ,newVar (has-type (,dyn ,flat ,type) ,t)))))))]
+
         ;; +, -, (read), not, eq?
         [`(has-type (,op ,es ...) ,t-cnd)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
@@ -174,6 +182,8 @@
              (values `(has-type ,newVar ,t-cnd)
                      (append (apply append assignments)
                              (list `(assign ,newVar (has-type (,op ,@flats) ,t-cnd)))))))]
+
+
         ;; values
         [`(has-type ,n ,t)
          (cond
@@ -183,6 +193,8 @@
                 (integer? n))
             (values e '())]
            [else (error 'flatten-values (format "check : ~a\n" e))])]
+
+        
         
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
