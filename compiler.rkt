@@ -49,9 +49,9 @@
                                    (let ([tmp2 (project ,(r7->r6 i) Integer)])
                                      (inject (vector-set! tmp1 tmp2 ,(r7->r6 e))
                                              Void)))]
-      [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #t Boolean))
-                                     ,(r7->r6 e2)
-                                     ,(r7->r6 e3))]
+      [`(if ,e1 ,e2 ,e3)        `(if (eq? ,(r7->r6 e1) (inject #f Boolean))
+                                     ,(r7->r6 e3)
+                                     ,(r7->r6 e2))]
       [`(,pred? ,e)
        #:when (memv pred? '(boolean? vector? integer? procedure?))
        `(inject (,pred? ,(r7->r6 e)) Boolean)]
