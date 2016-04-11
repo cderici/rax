@@ -73,10 +73,12 @@
        (let ([typed-args (map type-as-any args)])
          `(define (,f ,@typed-args) : Any ,(r7->r6 e)))]
       [`(lambda (,xs ...) ,e)
-       (let ([typed-xs (map type-as-any xs)])
-         `(lambda: ,typed-xs : Any ,(r7->r6 e)))]
+       (let ([typed-xs (map type-as-any xs)]
+             [anys     (map (const `Any) xs)])
+         `(inject (lambda: ,typed-xs : Any ,(r7->r6 e))
+                  (,@anys -> Any)))]
       [`(vector ,e ...)
-       (let ([e^ (map r7->r6 e)]
+       (let ([e^   (map r7->r6 e)]
              [anys (map (const `Any) e)])
          `(inject (vector ,@e^) (Vector ,@anys)))]
       [`(app ,e-rator ,e-rands ...)
@@ -252,6 +254,12 @@
                         ,t^)
              (cons `(define (,name [,clos : _] ,@args) : ,ty-ret^
                       ,body^^) defs)))]
+    [`(has-type (,ject ,e ,fty) ,t)
+     #:when (set-member? (set `inject `project) ject)
+     (match-let ([(cons e^ defs) (closure-worker e)]
+                 [t^             (closurize-fun-ty t)])
+       (cons `(has-type (,ject ,e^ ,fty) ,t^)
+             defs))]
     [`(has-type (,op ,args ...) ,t)
      #:when (set-member? prim-names op)
      (match-let ([(list (cons args^ defs) ...) (map closure-worker args)]

@@ -35,7 +35,7 @@
         [`(function-ref ,(and s (? symbol?)))
          (let ([fr-ty (lookup s env)])
            (if (is-ftype fr-ty)
-               `(has-type (inject (has-type (function-ref ,s)
+               `(has-type (inject (has-type (function-ref (has-type ,s ,fr-ty))
                                             ,fr-ty)
                                   ,fr-ty)
                           Any)
