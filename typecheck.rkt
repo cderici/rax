@@ -10,6 +10,7 @@
   (match-lambda
     [`Boolean              #t]
     [`Integer              #t]
+    [`Void                 #t]
     [`(Vector Any Any ...) #t]
     [`(Vectorof Any)       #t]
     [`(Any ... -> Any)     #t]
