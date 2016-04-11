@@ -98,9 +98,10 @@
 ; Instruction -> Set Variable
 (define read-variables
   (match-lambda
-    [`(,(or `addq `subq `cmpq `salq `sarq) ,arg1 ,arg2)
+    [`(,(or `addq `subq `cmpq `salq `sarq `xorq `andq `orq) ,arg1 ,arg2)
      (set-union (variable arg1)
                 (variable arg2))]
+    [`(,(or `negq `notq) ,arg) (variable arg)]
     [(or `(movq ,arg1 (offset ,arg2 ,n)) `(movq (offset ,arg1 ,n) ,arg2)) (set-union (variable arg1) (variable arg2))]
     [`(movq ,arg1 ,_) (variable arg1)]
     [`(indirect-callq ,arg) (variable arg)]
@@ -164,8 +165,7 @@
 (define add-edge-interference
   (lambda (instr live-after-set graph)
     (match instr
-      [(or `(leaq ,s ,d) `(movq ,s ,d) `(movzbq ,s ,d) `(xorq ,s ,d)
-           `(sarq ,s ,d) `(salq ,s ,d) `(orq ,s ,d) `(andq ,s ,d))
+      [(or `(leaq ,s ,d) `(movq ,s ,d) `(movzbq ,s ,d))
        (let [(s-pl (arg-payload s))
              (d-pl (arg-payload d))]
          (sequence-fold
@@ -177,7 +177,8 @@
                   gr)))
           graph
           live-after-set))]
-      [(or `(,(or `addq `subq) ,_ ,d) `(negq ,d) `(notq ,d))
+      [(or `(,(or `addq `subq) ,_ ,d) `(negq ,d) `(notq ,d)
+           `(xorq ,_ ,d) `(sarq ,_ ,d) `(salq ,_ ,d) `(orq ,_ ,d) `(andq ,_ ,d))
        (let [(d-pl (arg-payload d))]
          (sequence-fold
           (λ (gr v)
