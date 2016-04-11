@@ -281,7 +281,13 @@
                          new-added-vars))]
               ;; vector-ref
               [`(vector-ref ,vec ,n)  ;; ASSUMPTION: vec is always var
-               (values (append `((movq (offset (var ,vec) ,(* 8 (+ n 1))) (var ,var))) new-assignments) new-added-vars)]
+               (let ([new-var (gensym 'vecrefindex.)])
+                 (values (append
+                          `((addq (int 1) (var ,new-var))
+                            (mulq (int 8) (var ,new-var))
+                            (movq (offset (var ,vec) (var ,new-var)) (var ,var)))
+                          new-assignments)
+                         (cons new-var new-added-vars)))]
               ;; vector-set!
               [`(vector-set! ,vec ,n ,arg)
                (let ([arg-exp
@@ -290,13 +296,16 @@
                         [(? integer?) `(int ,arg)]
                         [(? boolean?) `(int ,(if arg 1 0))]
                         [(? symbol?) `(var ,arg)]
-                        [else (error 'select-intr/vector-set! "wtf?")])])
+                        [else (error 'select-intr/vector-set! "wtf?")])]
+                     [new-var (gensym 'vecsetindex.)])
                  ;; should we check the type of the arg?
                  (values (append 
-                          `((movq ,arg-exp (offset (var ,vec) ,(* 8 (+ n 1))))
+                          `((addq (int 1) (var ,new-var))
+                            (mulq (int 8) (var ,new-var))
+                            (movq ,arg-exp (offset (var ,vec) (var ,new-var)))
                             (movq (int 0) (var ,var)))
                           new-assignments)
-                         new-added-vars))]
+                         (cons new-var new-added-vars)))]
               
               [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]))]
          

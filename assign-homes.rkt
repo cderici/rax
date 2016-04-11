@@ -98,7 +98,7 @@
 ; Instruction -> Set Variable
 (define read-variables
   (match-lambda
-    [`(,(or `addq `subq `cmpq `salq `sarq) ,arg1 ,arg2)
+    [`(,(or `addq `subq `mulq `cmpq `salq `sarq) ,arg1 ,arg2)
      (set-union (variable arg1)
                 (variable arg2))]
     [(or `(movq ,arg1 (offset ,arg2 ,n)) `(movq (offset ,arg1 ,n) ,arg2)) (set-union (variable arg1) (variable arg2))]
