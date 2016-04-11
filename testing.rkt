@@ -113,10 +113,15 @@
     ;(torture-tests)
     |#
 
+    (define r7-range (irange 0 11))
+    (define r7-tests
+      (tests "Jeremy's R7 tests" #f passes interp-scheme "r7" r7-range))
+
     (define dyn-range (append (irange 1 14) (irange 18 23))) ; TODO: Put 15-17 back in
     (define dyn-tests
       (tests "In which Ryan makes types cry :("
              #f passes interp-scheme "dyn" dyn-range))
 
+    (r7-tests)
     (dyn-tests)
     (display "all tests passed!") (newline)))
