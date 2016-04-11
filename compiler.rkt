@@ -41,7 +41,8 @@
       [`(- ,e)                  `(inject
                                   (- (project ,(r7->r6 e) Integer))
                                   Integer)]
-      [`(not ,e)                `(eq? ,(r7->r6 e) (inject #f Boolean))]
+      [`(not ,e)                `(inject (eq? ,(r7->r6 e) (inject #f Boolean))
+                                         Boolean)]
       [`(vector-ref ,e1 ,e2)    `(let ([tmp1 (project ,(r7->r6 e1) (Vectorof Any))])
                                    (let ([tmp2 (project ,(r7->r6 e2) Integer)])
                                      (vector-ref tmp1 tmp2)))]
