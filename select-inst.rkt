@@ -59,7 +59,7 @@
     ['Boolean          #b001]
     [`(Vector ,args ...)   #b010]
     [`(Vectorof ,args ...) #b010]
-    [`(... -> ...) #b011]
+    [`(,in ... -> ,out) #b011]
     ['Void             #b100]
     [else (error 'tagof "undefined type : ~a" T)]))
 
