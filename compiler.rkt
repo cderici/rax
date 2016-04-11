@@ -70,8 +70,8 @@
       [`(let ([,x ,e1]) ,e2)    `(let ([,x ,(r7->r6 e1)])
                                    ,(r7->r6 e2))]
       [`(define (,f ,args ...) ,e)
-       `(let ([typed-args (map type-as-any args)])
-          `(define (,f ,@typed-args) : Any ,(r7-to-r6 e)))]
+       (let ([typed-args (map type-as-any args)])
+         `(define (,f ,@typed-args) : Any ,(r7->r6 e)))]
       [`(lambda (,xs ...) ,e)
        (let ([typed-xs (map type-as-any xs)])
          `(lambda: ,typed-xs : Any ,(r7->r6 e)))]
@@ -100,7 +100,7 @@
          (let* ([new-args (map (curry gensym) args)]
                 [assocs (map cons args new-args)])
            `(lambda (,@new-args) ,((uniquify (append assocs alist)) body)))]
-        [`(define ,(list fun args ...) ,body)
+        [`(define (,fun ,args ...) ,body)
          (let* ([new-args    (map gensym args)]
                 [assocs      (map cons args new-args)])
            `(define (,fun ,@new-args)
@@ -127,7 +127,7 @@
 
 (define def-name
   (match-lambda
-    [`(define (,fun ,_ ...) : ,_ ,_) fun]))
+    [`(define (,fun ,_ ...) ,_) fun]))
 
 (define void-count -1)
 
