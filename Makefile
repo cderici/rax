@@ -7,7 +7,7 @@ endif
 dummy: # ...
     # ...
 
-.PHONY: clean test
+.PHONY: clean test paper
 
 CC     = gcc
 RACKET = racket
@@ -25,3 +25,6 @@ test: runtime.o
 
 clean:
 	$(RM) -f *.o *.out *.exe *.s *~
+
+proposal:
+	pdflatex final-project/proposal.tex
