@@ -12,10 +12,48 @@
  
 \maketitle
 
-\section{Section 1}
+\section{Description}
 
-\subsection{Subsection 1}
+Our plan is to enrich our existing R5 compiler with tail call optimization,
+i.e., the ability to invoke certain function calls at the end of a function without
+the need to allocate an extra stack frame. This would permit the compiler to produce
+extremely space-efficient code for recursive functions (which are ubiquitous in
+functional programming languages like Racket and R5).
 
-\section{Section 2}
+\section{Milestones}
+
+We will work on the final project in the following order:
+
+\begin{enumerate}
+ \item Apply tail call optimization only to first-order functions which use immediate
+       tail recursion, e.g.     
+\begin{verbatim}
+(define (fib n acc)
+  (if (< n 2) 1 (fib (- n 1) (* n acc))))
+\end{verbatim}
+ \item Apply tail cail optimization to first-order functions that are mutually
+       recursive, e.g.,
+\begin{verbatim}
+(define (odd?  n)
+  (if (eq? n 0) #f (even? (- n 1))))
+(define (even? n)
+  (if (eq? n 0) #t (odd?  (- n 1))))
+\end{verbatim}
+ \item Apply tail cail optimization to all tail cails, even those involving
+       higher-order functions. For example:
+\begin{verbatim}
+(define (foo fn)
+  (fn 5 1))
+(foo fib)
+\end{verbatim}
+
+       Implementing this correctly may involve other static analysis techniques
+       (e.g., decomposition of the source code into basic blocks).
+
+\end{enumerate}
+
+We are confident in our ability to complete the first two milestones before the final
+deadline. The last milestone is less certain, so we will shoot for it as an ideal
+goal once the other two milestones have been finished.
 
 \end{document}
