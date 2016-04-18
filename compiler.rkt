@@ -71,36 +71,38 @@
 
 ;; R5 -> R5
 (define reveal-functions
-  (λ (locals)
+  (λ (locals tail?)
     (match-lambda
       [`(has-type (let ([,x ,e]) ,body) ,t)
-       `(has-type (let ([,x ,((reveal-functions locals) e)])
-                    ,((reveal-functions (set-add locals x)) body)) ,t)]
+       `(has-type (let ([,x ,((reveal-functions locals #f) e)])
+                    ,((reveal-functions (set-add locals x) tail?) body)) ,t)]
       [`(has-type (if ,cnd ,thn ,els) ,t)
-       `(has-type (if ,((reveal-functions locals) cnd)
-                      ,((reveal-functions locals) thn)
-                      ,((reveal-functions locals) els)) ,t)]
+       `(has-type (if ,((reveal-functions locals #f)    cnd)
+                      ,((reveal-functions locals tail?) thn)
+                      ,((reveal-functions locals tail?) els)) ,t)]
       [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
        (let ([arg-tys (map (λ (a t) `[,a : ,t]) args tys)])
-         `(has-type (lambda: (,@arg-tys) : ,ty-ret ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args)) body)) ,t))]
-
+         `(has-type (lambda: (,@arg-tys) : ,ty-ret
+                      ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args) tail?) body)) ,t))]
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        `(define ,args : ,ty-ret
-          ,((reveal-functions (set-union (list->set arg1) locals)) body))]
+          ,((reveal-functions (set-union (list->set arg1) locals) tail?) body))]
       [`(program (type ,t) ,defines ... ,body)
        `(program (type ,t)
-                 ,@(map (reveal-functions locals) defines)
-                 ,((reveal-functions locals) body))]
+                 ,@(map (reveal-functions locals #t) defines)
+                 ,((reveal-functions locals #t) body))]
       [`(program ,defines ... ,body) ; for debugging purposes
-       `(program ,@(map (reveal-functions locals) defines)
-                 ,((reveal-functions locals) body))]
-
+       `(program ,@(map (reveal-functions locals #t) defines)
+                 ,((reveal-functions locals #t) body))]
       [`(has-type (,op ,args ...) ,t)
        #:when (set-member? prim-names op)
-       `(has-type (,op ,@(map (reveal-functions locals) args)) ,t)]
+       `(has-type (,op ,@(map (reveal-functions locals #f) args)) ,t)]
       [`(has-type (,rator ,rands ...) ,t)
-       `(has-type (app ,((reveal-functions locals) rator)
-                       ,@(map (reveal-functions locals) rands)) ,t)]
+       (let [(app-word (if tail?
+                           `app ;`tail-app
+                           `app))]
+         `(has-type (,app-word ,((reveal-functions locals tail?) rator)
+                               ,@(map (reveal-functions locals #t) rands)) ,t))]
       [`(has-type ,n ,t)
        (if (symbol? n)
            (if (set-member? locals n)
@@ -536,7 +538,7 @@
 ; [Pass]
 (define r4-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
+                    ("reveal-functions" ,(reveal-functions (set) #t) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
@@ -549,7 +551,7 @@
 ; [Pass]
 (define r5-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
+                    ("reveal-functions" ,(reveal-functions (set) #t) ,interp-scheme)
                     ("convert-to-closures" ,convert-to-closures ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
