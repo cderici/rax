@@ -190,5 +190,5 @@
 
 (define arg-fun-type?
   (match-lambda
-    [`(,_ : (,_ ... -> ,_ ...)) #t]
+    [`(,_ : (,_ ... -> ,_)) #t]
     [else #f]))
