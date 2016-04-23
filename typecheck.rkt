@@ -1,6 +1,6 @@
 #lang racket
 
-(provide typechecker)
+(provide typechecker arg-fun-type?)
 
 (require "utilities.rkt")
 
@@ -186,3 +186,9 @@
            "" ls)))
 
 (define typechecker (typecheck `()))
+
+
+(define arg-fun-type?
+  (match-lambda
+    [`(,_ : (,_ ... -> ,_ ...)) #t]
+    [else #f]))
