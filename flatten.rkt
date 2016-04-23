@@ -166,6 +166,8 @@
            
            [else
             (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
+
+        [`(has-type (tail-app ,func ,args ...) ,ty) (values e '())]
         
         ;; +, -, (read), not, eq?
         [`(has-type (,op ,es ...) ,t-cnd)
