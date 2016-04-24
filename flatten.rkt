@@ -136,7 +136,7 @@
            [`(has-type (if ,cnd-inner ,thn-inner ,els-inner) Boolean)
             ((flatten vars) `(has-type (if ,cnd-inner
                                            (has-type (if ,thn-inner ,thn ,els) ,t)
-                                           (has-type (if ,els-inner ,thn ,els) ,t)) ,t))]
+                                           (has-type (if ,els-inner ,thn ,els) ,t)) ,t))]           
            ;; cnd is an app
            [(or `(has-type (app ,_ ...) Boolean) `(has-type (vector-ref ,_ ,_) Boolean))
             ;; just producing the same if, keeping the else to be alerted when we have a new type of cnd
@@ -167,15 +167,18 @@
            [else
             (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
 
-        [`(has-type (tail-app ,func ,args ...) ,ty) (values e '())]
+        [`(has-type (tail-app ,func ,args ...) ,ty)
+         (let-values ([(flats assignments) (map2 (flatten vars) args)])
+           (values `(has-type (tail-app ,func ,@flats) ,ty)
+                   (apply append assignments)))]
         
         ;; +, -, (read), not, eq?
-        [`(has-type (,op ,es ...) ,t-cnd)
+        [`(has-type (,op ,es ...) ,ty)
          (let-values ([(flats assignments) (map2 (flatten vars) es)])
            (let ((newVar (gensym `tmp.)))
-             (values `(has-type ,newVar ,t-cnd)
+             (values `(has-type ,newVar ,ty)
                      (append (apply append assignments)
-                             (list `(assign ,newVar (has-type (,op ,@flats) ,t-cnd)))))))]
+                             (list `(assign ,newVar (has-type (,op ,@flats) ,ty)))))))]
         ;; values
         [`(has-type ,n ,t)
          (cond
