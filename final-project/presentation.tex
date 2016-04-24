@@ -117,22 +117,108 @@
 %------------------------------------------------
 
 \begin{frame}[fragile]
-\frametitle{One example}
-\begin{minted}{haskell}
-class Equal a where
-  eq :: a -> a -> Bool
+\frametitle{Demo 1}
+\begin{minted}{Scheme}
+(define (explosion [n : Integer]) : Integer
+  (explosion (+ n 0)))
 
-data Tree a = Leaf | Node a | Branch (Tree a) a (Tree a)
-
-instance Equal a => Equal (Tree a) where
-  eq Leaf Leaf = True
-  eq (Node a1) (Node a2) =
-      eq a1 a2
-  eq (Branch lc1 a1 rc1) (Branch lc2 a2 rc2) =
-      eq lc1 lc2 && eq a1 a2 && eq rc1 rc2
-  eq _ _ = False
+(explosion 0)
 \end{minted}
 \end{frame}
 
+%------------------------------------------------
+
+\begin{frame}
+\frametitle{We can do better}
+\begin{itemize}
+\item This is awful for a number of reasons:
+ \begin{itemize}
+  \item Infinite loops should be \textit{infinite}, dagnabbit!
+  \item Even programs that aren't infinite might need to recurse many times,
+        and hitting the stack frame limit for computations that should terminate
+        would be aggravating.
+ \end{itemize}
+\item We want function calls to be cheaper to allow this sort of programming.
+\end{itemize}
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}[fragile]
+\frametitle{Tail calls}
+\begin{itemize}
+\item In R5, there are certain places---\textit{tail positions}---where one can invoke a function where the
+      returned value is given back immediately to the caller.
+\item Examples:
+\begin{minted}{Scheme}
+(if #t
+    (foo x)  ; Tail position
+    (foo y)) ; Tail position
+
+(let ([x (bar 42)) ; Not tail position
+    (baz x))       ; Tail position
+
+(define (quux) : Integer
+  ((lambda: () : Integer (quux)))) ; Tail position 
+\end{minted}
+\end{itemize}
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}[fragile]
+\frametitle{Assembly code for tail calls}
+\begin{itemize}
+\item This is what our compiler previously generated for \texttt{(explosion)}:
+\begin{multicols}{2}
+\begin{minted}[fontsize=\tiny]{as}
+        .globl explosion
+explosion:
+        pushq   %rbp
+        movq    %rsp, %rbp
+        subq    $32, %rsp
+        movq    %r13, -16(%rbp)
+        movq    %r12, -24(%rbp)
+        movq    %rbx, -32(%rbp)
+
+        movq    %rdi, %rbx
+        leaq    explosion(%rip), %r13
+        movq    free_ptr(%rip), %rsi
+        addq    $16, %rsi
+        cmpq    fromspace_end(%rip), %rsi
+        setl    %al
+        movzbq  %al, %rsi
+        cmpq    $0, %rsi
+        je      then14540
+        jmp     end14541
+then14540:
+        movq    %rbx, %rsi
+        addq    $0, %rsi
+        movq    %rsi, %rdi
+        movq    $16, %rsi
+        callq   collect
+end14541:
+        movq    free_ptr(%rip), %rsi
+        addq    $16, free_ptr(%rip)
+        movq    $3, 0(%rsi)
+        movq    %r13, 8(%rsi)
+        movq    $0, %r13
+        movq    8(%rsi), %r12
+        movq    %rbx, %rdi
+        callq   *%r12
+        movq    %rax, %rbx
+        movq    %rbx, %rax
+
+        movq    -16(%rbp), %r13
+        movq    -24(%rbp), %r12
+        movq    -32(%rbp), %rbx
+        addq    $32, %rsp
+        popq    %rbp
+        retq
+\end{minted}
+\end{multicols}
+
+\end{itemize}
+\end{frame}
 
 \end{document}
