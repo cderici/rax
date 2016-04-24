@@ -384,7 +384,7 @@
                 ,(display-instr "pushq" "%rbp")
                 ,(display-instr "movq" "%rsp, %rbp")
                 ,(save-callee-regs instrs i wcsr)
-                ,(format "~aEntry:\n" f) ;; afraid of _ there, so using camel style (e.g. factEntry:)
+                ,(string-append (symbol->string (sanitize-label f)) "Entry:\n") ;; afraid of _ there, so using camel style (e.g. factEntry:)
                 "\n"
                 ,(apply string-append (map print-x86-64-instr instrs))
                 "\n"

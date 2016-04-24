@@ -53,6 +53,21 @@
                 (find-top-calls (cdr body) toplevels))]
        [else (find-top-calls (cdr body) toplevels)]))))
 
+(define sanitize-label
+  (compose1 string->symbol
+            list->string
+            (curry append-map
+                   (λ (c) (if (or (char-alphabetic? c)
+                                  (char-numeric? c)
+                                  (char=? c #\_))
+                              `(,c)
+                              ((compose1 string->list
+                                         number->string
+                                         char->integer) c))))
+            string->list
+            symbol->string))
+
+
 (define select-instructions-inner
   (lambda (assignments+return current-rootstack-var added-vars)
     (cond
@@ -185,7 +200,7 @@
                  [passing-to-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
                                             (build-list stack-places-num (lambda (n) `(stack-arg ,(- (* 8 (add1 n)) 8)))))]
                  [move-arguments `(,@(map (lambda (param passing-to) `(movq ,(encode-arg param) ,passing-to)) args passing-to-places))]
-                 [jmp-label (string->symbol (string-append (symbol->string fun) "Entry"))])
+                 [jmp-label (string->symbol (string-append (symbol->string (sanitize-label fun)) "Entry"))])
             (let-values ([(new-assignments new-added-vars)
                           (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
