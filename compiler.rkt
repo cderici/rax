@@ -139,16 +139,16 @@
                   [(cons body^ defs) (closure-worker body)])
        (cons `(define (,fun ,@new-args) : ,new-ty-ret ,body^)
              defs))]
-    [`(has-type (app ,rator ,rands ...) ,t)
+    [`(has-type (,(and app-name (or `app `tail-app)) ,rator ,rands ...) ,t)
      (match-let* ([(cons rator^ defs1)               (closure-worker rator)]
                   [(list (cons rands^ defs2) ...)    (map closure-worker rands)]
                   [tmp                               (gensym 'closure_app_temp)]
                   [`(has-type ,_ (Vector ,rator^-t)) rator^]
                   [t^                                (closurize-fun-ty t)])
        (cons `(has-type (let ([,tmp ,rator^])
-                          (has-type (app (has-type (vector-ref (has-type ,tmp (Vector ,rator^-t)) (has-type 0 Integer))
-                                                   ,rator^-t)
-                                         (has-type ,tmp _) ,@rands^)
+                          (has-type (,app-name (has-type (vector-ref (has-type ,tmp (Vector ,rator^-t)) (has-type 0 Integer))
+                                                         ,rator^-t)
+                                               (has-type ,tmp _) ,@rands^)
                                     ,t^))
                         ,t^)
              (append defs1 (shallow-flatten defs2))))]
