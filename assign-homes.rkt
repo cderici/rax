@@ -192,8 +192,7 @@
       ;; since we're not writing anything
       [`(,setter (byte-reg al))
        #:when (memv setter '(sete setl setle setg setge)) graph]
-      #;[`(sete (byte-reg al)) graph]
-      #;[`(setl (byte-reg al)) graph]
+      [`(jmp ,label) graph]
       [`(if (eq? ,e1 ,e2) ,thns ,thn-lives ,elss ,els-lives)
        (foldl (curry add-edge-interference)
               (foldl (curry add-edge-interference)
