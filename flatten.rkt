@@ -122,15 +122,22 @@
            [`(has-type (eq? ,e1 ,e2) Boolean)
             (let-values ([(flat-e1 statements-e1) ((flatten vars) e1)]
                          [(flat-e2 statements-e2) ((flatten vars) e2)]
-                         [(flat-thn statements-thn) ((flatten vars) thn)]
-                         [(flat-els statements-els) ((flatten vars) els)])
-              (let ([newIfVar (gensym `if.)])
+                         [(flat-thn* statements-thn) ((flatten vars) thn)]
+                         [(flat-els* statements-els) ((flatten vars) els)])
+              (let* ([newIfVar (gensym `if.)]
+                     [thn-assign (match flat-thn*
+                                   [`(has-type (tail-app ,func ,args ...) ,ty) `((has-type (tail-app ,func ,@args) ,ty))]
+                                   [else `((assign ,newIfVar ,flat-thn*))])]
+                     [els-assign (match flat-els*
+                                   [`(has-type (tail-app ,func ,args ...) ,ty) `((has-type (tail-app ,func ,@args) ,ty))]
+                                   [else `((assign ,newIfVar ,flat-els*))])])
+                
                 (values `(has-type ,newIfVar ,t)
                         (append statements-e1
                                 statements-e2
                                 `((has-type (if (has-type (eq? ,flat-e1 ,flat-e2) Boolean)
-                                                ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
-                                                ,(append statements-els `((assign ,newIfVar ,flat-els)))) ,t))))))]
+                                                ,(append statements-thn thn-assign)
+                                                ,(append statements-els els-assign)) ,t))))))]
            
            ;; another 'if' in there
            [`(has-type (if ,cnd-inner ,thn-inner ,els-inner) Boolean)
@@ -141,14 +148,20 @@
            [(or `(has-type (app ,_ ...) Boolean) `(has-type (vector-ref ,_ ,_) Boolean))
             ;; just producing the same if, keeping the else to be alerted when we have a new type of cnd
             (let-values ([(flat-cnd statements-cnd) ((flatten vars) cnd)]
-                         [(flat-thn statements-thn) ((flatten vars) thn)]
-                         [(flat-els statements-els) ((flatten vars) els)])
-              (let ([newIfVar (gensym `if.)])
+                         [(flat-thn* statements-thn) ((flatten vars) thn)]
+                         [(flat-els* statements-els) ((flatten vars) els)])
+              (let* ([newIfVar (gensym `if.)]
+                     [thn-assign (match flat-thn*
+                                   [`(has-type (tail-app ,func ,args ...) ,ty) `((has-type (tail-app ,func ,@args) ,ty))]
+                                   [else `((assign ,newIfVar ,flat-thn*))])]
+                     [els-assign (match flat-els*
+                                   [`(has-type (tail-app ,func ,args ...) ,ty) `((has-type (tail-app ,func ,@args) ,ty))]
+                                   [else `((assign ,newIfVar ,flat-els*))])])
                 (values `(has-type ,newIfVar ,t)
                         (append statements-cnd
                                 `((has-type (if (has-type (eq? ,flat-cnd (has-type #t Boolean)) Boolean)
-                                                ,(append statements-thn `((assign ,newIfVar ,flat-thn)))
-                                                ,(append statements-els `((assign ,newIfVar ,flat-els)))) ,t))))))]
+                                                ,(append statements-thn thn-assign)
+                                                ,(append statements-els els-assign)) ,t))))))]
            [`(has-type ,n Boolean)
             (cond
               ((boolean? n)
@@ -191,8 +204,7 @@
         
         ;; +, -, (read), not, eq?
         [`(,op ,es ...)
-         (begin (displayln "heyy" (current-output-port))
-                (let-values ([(flats assignments) (map2 (flatten vars) es)])
-                  (let ((newVar (gensym `tmp.)))
-                    (values newVar (append (apply append assignments)
-                                           (list `(assign ,newVar (,op ,@flats))))))))]))))
+         (let-values ([(flats assignments) (map2 (flatten vars) es)])
+           (let ((newVar (gensym `tmp.)))
+             (values newVar (append (apply append assignments)
+                                    (list `(assign ,newVar (,op ,@flats)))))))]))))

@@ -257,8 +257,9 @@
   (λ (heap-size-bytes)
     (λ (e)
       (match e
+        [`(has-type (tail-app ,func ,args ...) ,t) (list e)]
         [`(has-type ,e ,t)
-         `((has-type ,((expose-allocation heap-size-bytes) e) ,t))]
+         `((has-type ,((expose-allocation heap-size-bytes) e) ,t))]        
         [`(if ,c ,t ,e)
          `(if ,c
               ,(foldr append null (map (expose-allocation heap-size-bytes) t))
