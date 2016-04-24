@@ -27,7 +27,7 @@
       (compiler-tests caption tc passes name range))))
 
 (define (single-test passes t-name t-num)
-  (begin 
+  (begin
     (tests "Single Test" typechecker passes interp-scheme t-name (irange t-num t-num))
     (displayln (format "Single test for : ~a_~a passed" t-name t-num))))
 
@@ -95,6 +95,11 @@
     (define torture-tests
       (tests "torture" typechecker passes interp-scheme "torture" torture-range))
 
+    (define explosion
+      (tests "explosion" typechecker passes interp-scheme "explosion" '(0)))
+
+    (explosion)
+    #|
     (r0-tests)
     (r1-tests)
     (r1a-tests)
@@ -109,5 +114,6 @@
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)
+    |#
     ;(torture-tests)
     (display "all tests passed!") (newline)))
