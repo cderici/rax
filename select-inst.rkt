@@ -198,22 +198,22 @@
              new-added-vars))]
 
          ;; function application
-         [`(tail-app (function-ref ,fun) ,args ...)
+         [`(tail-app ,fun ,args ...)
+          (begin (displayln fun)
           (let* ([move-rootstack `((movq (var ,current-rootstack-var) (reg rdi)))]
                  [num-vars (length args)]
                  [stack-places-num (if (<= num-vars 5) 0 (- num-vars 5))]
                  [register-num (if (>= num-vars 5) 5 num-vars)]
                  [passing-to-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
                                             (build-list stack-places-num (lambda (n) `(stack-arg ,(- (* 8 (add1 n)) 8)))))]
-                 [move-arguments `(,@(map (lambda (param passing-to) `(movq ,(encode-arg param) ,passing-to)) args passing-to-places))]
-                 [jmp-label (string->symbol (string-append (symbol->string (label fun)) "Entry"))])
+                 [move-arguments `(,@(map (lambda (param passing-to) `(movq ,(encode-arg param) ,passing-to)) args passing-to-places))])
             (let-values ([(new-assignments new-added-vars)
                           (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values
                (append `(,@move-rootstack
                          ,@move-arguments
-                         (jmp ,jmp-label)) new-assignments)
-               new-added-vars)))]
+                         (jmp (var ,fun))) new-assignments)
+               new-added-vars))))]
          
          ;; initialize
          [`(initialize ,rootlen ,heaplen)
