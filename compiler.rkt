@@ -91,10 +91,10 @@
       [`(program (type ,t) ,defines ... ,body)
        `(program (type ,t)
                  ,@(map (reveal-functions locals #t current-fn-args) defines)
-                 ,((reveal-functions locals #t current-fn-args) body))]
+                 ,((reveal-functions locals #f current-fn-args) body))]
       [`(program ,defines ... ,body) ; for debugging purposes
        `(program ,@(map (reveal-functions locals #t current-fn-args) defines)
-                 ,((reveal-functions locals #t current-fn-args) body))]
+                 ,((reveal-functions locals #f current-fn-args) body))]
       [`(has-type (,op ,args ...) ,t)
        #:when (set-member? prim-names op)
        `(has-type (,op ,@(map (reveal-functions locals #f current-fn-args) args)) ,t)]
