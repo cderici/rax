@@ -104,7 +104,7 @@
                             `tail-app ;`tail-app
                             `app)])
          `(has-type (,app-word ,((reveal-functions locals tail? current-fn-args) rator)
-                               ,@(map (reveal-functions locals #t current-fn-args) rands)) ,t))]
+                               ,@(map (reveal-functions locals #f current-fn-args) rands)) ,t))]
       [`(has-type ,n ,t)
        (if (symbol? n)
            (if (set-member? locals n)
@@ -259,7 +259,7 @@
       (match e
         [`(has-type (tail-app ,func ,args ...) ,t) (list e)]
         [`(has-type ,e ,t)
-         `((has-type ,((expose-allocation heap-size-bytes) e) ,t))]        
+         `((has-type ,((expose-allocation heap-size-bytes) e) ,t))]
         [`(if ,c ,t ,e)
          `(if ,c
               ,(foldr append null (map (expose-allocation heap-size-bytes) t))
