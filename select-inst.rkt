@@ -2,7 +2,7 @@
 
 (require "has-types.rkt")
 
-(provide select-instructions)
+(provide select-instructions label)
 
 (define arg-registers '(rsi rdx rcx r8 r9)) ;; rdi is used for passing the rootstack variable
 
@@ -53,6 +53,13 @@
                 (find-top-calls (cdr body) toplevels))]
        [else (find-top-calls (cdr body) toplevels)]))))
 
+(define label
+  (lambda (l)
+    (match (system-type 'os)
+      [`macosx (string->symbol
+                (string-append "_" (symbol->string (sanitize-label l))))]
+      [_ (sanitize-label l)])))
+
 (define sanitize-label
   (compose1 string->symbol
             list->string
@@ -66,7 +73,6 @@
                                          char->integer) c))))
             string->list
             symbol->string))
-
 
 (define select-instructions-inner
   (lambda (assignments+return current-rootstack-var added-vars)
@@ -200,7 +206,7 @@
                  [passing-to-places (append (map (lambda (reg) `(reg ,reg)) (take arg-registers register-num))
                                             (build-list stack-places-num (lambda (n) `(stack-arg ,(- (* 8 (add1 n)) 8)))))]
                  [move-arguments `(,@(map (lambda (param passing-to) `(movq ,(encode-arg param) ,passing-to)) args passing-to-places))]
-                 [jmp-label (string->symbol (string-append (symbol->string (sanitize-label fun)) "Entry"))])
+                 [jmp-label (string->symbol (string-append (symbol->string (label fun)) "Entry"))])
             (let-values ([(new-assignments new-added-vars)
                           (select-instructions-inner (cdr assignments+return) current-rootstack-var added-vars)])
               (values

@@ -484,27 +484,6 @@
                             "\n"))
             args)]))
 
-(define label
-  (lambda (l)
-    (match (system-type 'os)
-      [`macosx (string->symbol
-                (string-append "_" (symbol->string (sanitize-label l))))]
-      [_ (sanitize-label l)])))
-
-(define sanitize-label
-  (compose1 string->symbol
-            list->string
-            (curry append-map
-                   (λ (c) (if (or (char-alphabetic? c)
-                                  (char-numeric? c)
-                                  (char=? c #\_))
-                              `(,c)
-                              ((compose1 string->list
-                                         number->string
-                                         char->integer) c))))
-            string->list
-            symbol->string))
-
 (define genlabel
   (compose1 gensym label))
 
