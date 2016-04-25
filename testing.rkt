@@ -99,8 +99,9 @@
     (define tco-tests
       (tests "tco-tests" typechecker passes interp-scheme "tco" tco-range))
 
-    ;(tco-tests)
+    (tco-tests)
 
+    #|
     (r0-tests)
     (r1-tests)
     (r1a-tests)
@@ -116,4 +117,5 @@
     (flatten-tests)
     (tc-tests)
     ;(torture-tests)
+    |#
     (display "all tests passed!") (newline)))
