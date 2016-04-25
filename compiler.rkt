@@ -109,7 +109,7 @@
        (if (symbol? n)
            (if (set-member? locals n)
                `(has-type ,n ,t)
-               `(has-type (function-ref (has-type ,n ,t)) ,t))
+               `(has-type (function-ref (has-type ,n ,t) ,tail?) ,t))
            `(has-type ,n ,t))]
       [e e])))
 
@@ -152,12 +152,12 @@
                                     ,t^))
                         ,t^)
              (append defs1 (shallow-flatten defs2))))]
-    [`(has-type (function-ref (has-type ,f (,ty-args1 ... -> ,ty-ret1))) (,ty-args2 ... -> ,ty-ret2))
+    [`(has-type (function-ref (has-type ,f (,ty-args1 ... -> ,ty-ret1)) ,tail?) (,ty-args2 ... -> ,ty-ret2))
      (let ([ty-args1^ (map closurize-fun-ty ty-args1)]
            [ty-ret1^  (closurize-fun-ty     ty-ret1)]
            [ty-args2^ (map closurize-fun-ty ty-args2)]
            [ty-ret2^  (closurize-fun-ty     ty-ret2)])
-       (cons `(has-type (vector (has-type (function-ref (has-type ,f (,@ty-args1^ -> ,ty-ret1)))
+       (cons `(has-type (vector (has-type (function-ref (has-type ,f (,@ty-args1^ -> ,ty-ret1)) ,tail?)
                                           (_ ,@ty-args2^ -> ,ty-ret2^)))
                         (Vector (_ ,@ty-args2^ -> ,ty-ret2^)))
              `()))]
@@ -194,7 +194,7 @@
                           (cons body^ (length freevars))
                           freevars)])
        (cons `(has-type (vector (has-type (function-ref (has-type ,name
-                                                                  (,@ty-args^ -> ,ty-ret^)))
+                                                                  (,@ty-args^ -> ,ty-ret^)) #f)
                                           (_ ,@ty-args^ -> ,ty-ret^)) ,@(map has-typify freevars))
                         ,t^)
              (cons `(define (,name [,clos : _] ,@args) : ,ty-ret^
@@ -236,7 +236,7 @@
              (set-union (freevars cnd)
                         (freevars thn)
                         (freevars els))]
-            [`(has-type (function-ref ,f) ,t) (freevars f)]
+            [`(has-type (function-ref ,f ,_) ,t) (freevars f)]
             [`(has-type (app ,rator ,rands ...) ,t)
              (foldr set-union (set) (map freevars (cons rator rands)))]
             [`(has-type (,op ,args ...) ,t)
@@ -473,8 +473,8 @@
       [`(global-value fromspace_end) (format "~a(%rip)" (label 'fromspace_end))]
       [`(stack ,s) (format "~a(%rbp)" s)]
 
-      [`(function-ref ,l) (format "~a(%rip)" (label l))]
-      [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
+      [`(function-ref ,l ,_) (format "~a(%rip)" (label l))]
+      [`(stack-arg ,i)       (format "~a(%rsp)" i)])))
 
 (define display-instr
   (match-lambda*

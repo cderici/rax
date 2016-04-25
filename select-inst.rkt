@@ -48,7 +48,7 @@
     ((empty? body) '())
     (else
      (match (car body)
-       [`(assign ,var (function-ref ,f))
+       [`(assign ,var (function-ref ,f ,_))
         (append (filter (λ (top) (eqv? f (car (list-ref top 1)))) toplevels)
                 (find-top-calls (cdr body) toplevels))]
        [else (find-top-calls (cdr body) toplevels)]))))
@@ -141,8 +141,10 @@
                      (sete (byte-reg al))
                      (movzbq (byte-reg al) (var ,var))))]
                 ;; function-ref
-                [`(function-ref ,f)
-                 `((leaq (function-ref ,f) (var ,var)))]
+                [`(function-ref ,f ,tail?)
+                 `((leaq (function-ref ,(if tail? (string->symbol (string-append (symbol->string f) "Entry"))
+                                            f) ,tail?)
+                         (var ,var)))]
                 
                 ;; function application
                 [`(app ,fun ,args ...)
@@ -196,7 +198,7 @@
                 
                 [else (error 'select-instructions (format "don't know how to handle this rhs~a" rhs))]) new-assignments)
              new-added-vars))]
-
+         
          ;; function application
          [`(tail-app ,fun ,args ...)
           (let* ([move-rootstack `((movq (var ,current-rootstack-var) (reg rdi)))]
