@@ -1,4 +1,4 @@
 (define (explosion [n : Integer]) : Integer
-  (explosion (+ n 0)))
+  (explosion (+ n 1)))
 
 (explosion 0)
