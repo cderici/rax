@@ -54,8 +54,11 @@
       [`(program (type ,t) ,defines ... ,body)
        (let-values ([(final-exp assignments) ((flatten '()) body)])
          (let ([vars (getVars assignments)]
-               [flat-defines (map (flatten '()) defines)]) ;; note that a single value is returned for each define
-           `(program ,vars (type ,t) (defines ,@flat-defines) ,@assignments (return ,final-exp))))]
+               [flat-defines (map (flatten '()) defines)]
+               [return-expr (match final-exp
+                              [`(has-type (tail-app ,func ,args ...) ,ty) final-exp]
+                              [else `(return ,final-exp)])]) ;; note that a single value is returned for each define
+           `(program ,vars (type ,t) (defines ,@flat-defines) ,@assignments ,return-expr)))]
       [else (error 'flatten "invalid R_n input ast structure")])))
 
 ;; R5 -> C3
@@ -70,8 +73,11 @@
         [`(define (,f-name ,args ...) ;; args -> (arg-name : arg-type) ...
             : ,return-type ,body)
          (let-values ([(func-final-exp func-assignments) ((flatten '()) body)])
-           (let ([vars (getVars func-assignments)])
-             `(define (,f-name ,@args) :  ,return-type ,vars ,@func-assignments (return ,func-final-exp))))]
+           (let ([vars (getVars func-assignments)]
+                 [return-expr (match func-final-exp
+                                [`(has-type (tail-app ,func ,args ...) ,ty) func-final-exp]
+                                [else `(return ,func-final-exp)])])
+             `(define (,f-name ,@args) :  ,return-type ,vars ,@func-assignments ,return-expr)))]
         
         ;; ;; function-ref
         ;; [`(function-ref ,f)
