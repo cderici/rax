@@ -142,7 +142,7 @@
                      (movzbq (byte-reg al) (var ,var))))]
                 ;; function-ref
                 [`(function-ref ,f)
-                 `((leaq (function-ref ,(string->symbol (string-append (symbol->string f) "Entry"))) (var ,var)))]
+                 `((leaq (function-ref ,f) (var ,var)))]
                 
                 ;; function application
                 [`(app ,fun ,args ...)
