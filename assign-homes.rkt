@@ -141,7 +141,8 @@
 (define arg-payload
   (match-lambda
     [`(offset (,(or `var `reg) ,payload) ,_) payload]
-    [`(,_ ,payload) payload]))
+    [`(,_ ,payload) payload]
+    [`(,_ ,payload ,_) payload]))
 
 ; x86* -> x86*
 (define build-interference
@@ -189,6 +190,7 @@
           graph
           live-after-set))]
       [`(cmpq ,arg1 ,arg2) graph]
+      [`(function-ref ,f ,t) graph]
       ;; since we're not writing anything
       [`(,setter (byte-reg al))
        #:when (memv setter '(sete setl setle setg setge)) graph]
