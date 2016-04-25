@@ -195,9 +195,10 @@
             (error 'optimizing-if (format "there is an unhandled conditional case : (if ~a ..." cnd))])]
 
         [`(has-type (tail-app ,func ,args ...) ,ty)
-         (let-values ([(flats assignments) (map2 (flatten vars) args)])
-           (values `(has-type (tail-app ,func ,@flats) ,ty)
-                   (apply append assignments)))]
+         (let-values ([(flat-func func-ass) ((flatten vars) func)]
+                      [(flats assignments) (map2 (flatten vars) args)])
+           (values `(has-type (tail-app ,flat-func ,@flats) ,ty)
+                   (append (apply append assignments) func-ass)))]
         
         ;; +, -, (read), not, eq?
         [`(has-type (,op ,es ...) ,ty)
