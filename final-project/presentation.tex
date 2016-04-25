@@ -145,7 +145,7 @@
 \frametitle{Demo 1}
 \begin{minted}{Scheme}
 (define (explosion [n : Integer]) : Integer
-  (explosion (+ n 0)))
+  (explosion (+ n 1)))
 
 (explosion 0)
 \end{minted}
@@ -399,7 +399,7 @@ main:
 \item We'll run the same program with our TCO'd compiler:
 \begin{minted}{Scheme}
 (define (explosion [n : Integer]) : Integer
-  (explosion (+ n 0)))
+  (explosion (+ n 1)))
 
 (explosion 0)
 \end{minted}
