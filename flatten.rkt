@@ -124,20 +124,28 @@
                          [(flat-e2 statements-e2) ((flatten vars) e2)]
                          [(flat-thn* statements-thn) ((flatten vars) thn)]
                          [(flat-els* statements-els) ((flatten vars) els)])
-              (let* ([newIfVar (gensym `if.)]
-                     [thn-assign (match flat-thn*
-                                   [`(has-type (tail-app ,func ,args ...) ,ty) `((has-type (tail-app ,func ,@args) ,ty))]
-                                   [else `((assign ,newIfVar ,flat-thn*))])]
-                     [els-assign (match flat-els*
-                                   [`(has-type (tail-app ,func ,args ...) ,ty) `((has-type (tail-app ,func ,@args) ,ty))]
-                                   [else `((assign ,newIfVar ,flat-els*))])])
+              (let ([newIfVar (gensym `if.)])
+                (let-values ([(tail-thn-assign tail-thn-statements)
+                              (match flat-thn*
+                                [`(has-type (tail-app ,func ,args ...) ,ty)
+                                 (let-values ([(flat-func statements-func) ((flatten vars) func)])
+                                   (values `((has-type (tail-app ,flat-func ,@args) ,ty))
+                                           statements-func))]
+                                   [else (values `((assign ,newIfVar ,flat-thn*)) '())])]
+                             [(tail-els-assign tail-els-statements)
+                              (match flat-els*
+                                [`(has-type (tail-app ,func ,args ...) ,ty)
+                                 (let-values ([(flat-func statements-func) ((flatten vars) func)])
+                                   (values `((has-type (tail-app ,flat-func ,@args) ,ty))
+                                           statements-func))]
+                                [else (values `((assign ,newIfVar ,flat-els*)) '())])])
                 
-                (values `(has-type ,newIfVar ,t)
-                        (append statements-e1
-                                statements-e2
-                                `((has-type (if (has-type (eq? ,flat-e1 ,flat-e2) Boolean)
-                                                ,(append statements-thn thn-assign)
-                                                ,(append statements-els els-assign)) ,t))))))]
+                  (values `(has-type ,newIfVar ,t)
+                          (append statements-e1
+                                  statements-e2
+                                  `((has-type (if (has-type (eq? ,flat-e1 ,flat-e2) Boolean)
+                                                  ,(append statements-thn tail-thn-statements tail-thn-assign)
+                                                  ,(append statements-els tail-els-statements tail-els-assign)) ,t)))))))]
            
            ;; another 'if' in there
            [`(has-type (if ,cnd-inner ,thn-inner ,els-inner) Boolean)
