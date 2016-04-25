@@ -327,8 +327,11 @@ end20252:
 \begin{frame}[fragile]
 \frametitle{How we do it}
 \begin{itemize}
-\item fdfdsfds
-
+\item flatten : (tail-app ...) is not assigned (passed as it is)
+\item reveal-functions : (function-ref ...) - under-tail-app?
+\item closure-conversion
+\item select-instructions : (tail-app ...) $->$ jmp
+\item print-x86-64 : Entry labels
 \end{itemize}
 \end{frame}
 
