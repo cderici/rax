@@ -450,6 +450,9 @@
     [`(callq ,l) (display-instr "callq" "~a"
                                 (label l))]
     [`(indirect-callq ,arg) (display-instr "callq" "*~a" (print-x86-64-arg arg))]
+    [`(jmp ,arg)
+      #:when (not (symbol? arg))
+      (display-instr "jmp" "*~a" (print-x86-64-arg arg))]
     [`(,op ,a) (display-instr "~a" "~a"
                               (symbol->string op)
                               (print-x86-64-arg a))]
