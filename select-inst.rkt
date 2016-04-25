@@ -199,7 +199,6 @@
 
          ;; function application
          [`(tail-app ,fun ,args ...)
-          (begin (displayln fun)
           (let* ([move-rootstack `((movq (var ,current-rootstack-var) (reg rdi)))]
                  [num-vars (length args)]
                  [stack-places-num (if (<= num-vars 5) 0 (- num-vars 5))]
@@ -213,7 +212,7 @@
                (append `(,@move-rootstack
                          ,@move-arguments
                          (jmp (var ,fun))) new-assignments)
-               new-added-vars))))]
+               new-added-vars)))]
          
          ;; initialize
          [`(initialize ,rootlen ,heaplen)
