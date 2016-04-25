@@ -362,11 +362,13 @@ main:
 \begin{frame}[fragile]
 \frametitle{More gotchas}
 \begin{itemize}
-\item How many stack arguments do you need?
+\item How much stack space do you need for the tail calls' stack frame?
  \begin{itemize}
   \item Vital that you don't clobber the local arguments of the caller
-  \item We accomplish this by TODO: INSERT MECHANISM
-  \item This is a bit na{\" i}ve, though
+  \item We accomplish this by calculating the amount of stack space every top-level
+        \texttt{define} needs, and allocating that much stack space at the beginning
+        of a function which can invoke a \texttt{tail-app}.
+  \item Downside: you might waste stack space
  \end{itemize}
 \end{itemize}
 \end{frame}
