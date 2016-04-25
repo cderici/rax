@@ -90,9 +90,9 @@
 %	TITLE PAGE
 %----------------------------------------------------------------------------------------
 
-\title[Tail-call optimization]{Tail-call optimization in R5} % The short title appears at the bottom of every slide, the full title is only on the title page
+\title[Tail-call optimization]{Tail-call Optimization in R5} % The short title appears at the bottom of every slide, the full title is only on the title page
 
-\author{Caner Derici and Ryan Scott} % Your name
+\author[Derici \& Scott]{Caner Derici \& Ryan Scott} % Your name
 \date{\today} % Date, can be changed to a custom date
 
 \begin{document}
@@ -103,14 +103,39 @@
 
 %------------------------------------------------
 
+\begin{frame}[fragile]
+  \frametitle{Tail Calls}
+  The last thing that a program does. \vspace{0.3cm}
+\begin{minted}{Scheme}
+  (define (fact n i)
+    (if (<= n 1) i
+        (fact (sub1 n) (* n i))))
+\end{minted}
+
+\vspace{0.2cm} as opposed to \vspace{0.2cm}
+
+\begin{minted}{Scheme}
+  (define (fact n)
+    (if (<= n 1) 1
+        (* n (fact (sub1 n)))))
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Tail Calls}
+  \begin{center}
+    \includegraphics[scale=0.6]{stack.png}
+    \end{center}
+\end{frame}
+
+%------------------------------------------------
+
 \begin{frame}
-\frametitle{What we aim to do}
+\frametitle{Currently R5}
 \begin{itemize}
-\item Currently, R5 allocates a new stack frame for every function call
-\item In a functional language, this is terrible, since iteration relies on
-      recursive functions (i.e., tons of successive function calls).
-\item This can make even simple iteration use up all of one's stack space
-      in the blink of an eye.
+\item Allocates a new stack frame for every function call \vspace{5mm}
+\item In a functional language this is terrible! \vspace{5mm} %, since iteration relies on recursive functions (i.e., tons of successive function calls).
+\item A simple iteration can blow up the stack in a blink %This can make even simple iteration use up all of one's stack space in the blink of an eye.
 \end{itemize}
 \end{frame}
 
@@ -130,16 +155,21 @@
 
 \begin{frame}
 \frametitle{We can do better}
-\begin{itemize}
-\item This is awful for a number of reasons:
+%\begin{itemize}
+This is awful for a number of reasons:
+
  \begin{itemize}
   \item Infinite loops should be \textit{infinite}, dagnabbit!
-  \item Even programs that aren't infinite might need to recurse many times,
-        and hitting the stack frame limit for computations that should terminate
-        would be aggravating.
+  \item Even programs that aren't infinite might need to recurse many times.
+    %,and hitting the stack frame limit for computations that should terminate would be aggravating.
  \end{itemize}
-\item We want function calls to be cheaper to allow this sort of programming.
-\end{itemize}
+
+ \vspace{5mm}
+ 
+ \begin{exampleblock}{}
+   We want function calls to be cheaper to allow this sort of programming.
+ \end{exampleblock}
+%\end{itemize}
 \end{frame}
 
 %------------------------------------------------
@@ -212,7 +242,7 @@ end14543:
         addq    $1, %r12
         movq    %rbx, %rdi
         movq    %r12, %rdx
-        callq   *%r13
+====>   callq   *%r13
         movq    %rax, %rbx
         movq    %rbx, %rax
 
@@ -237,7 +267,55 @@ end14543:
 \item Here is what it generates now:
 \begin{multicols}{2}
 \begin{minted}[fontsize=\tiny]{as}
-TODO: STUFF HERE
+	.globl explosion
+explosion:
+	pushq	%rbp
+	movq	%rsp, %rbp
+	subq	$32, %rsp
+	movq	%r14, -8(%rbp)
+	movq	%r13, -16(%rbp)
+	movq	%r12, -24(%rbp)
+	movq	%rbx, -32(%rbp)
+explosionEntry:  <========
+
+	movq	%rdi, %rbx
+	movq	%rsi, %r13
+	movq	%rdx, %r13
+	leaq	explosionEntry(%rip), %r14
+	movq	free_ptr(%rip), %r8
+	addq	$16, %r8
+	cmpq	fromspace_end(%rip), %r8
+	setl	%al
+	movzbq	%al, %r8
+	cmpq	$0, %r8
+	je	then20251
+	jmp	end20252
+then20251:
+	movq	%rbx, %r8
+	addq	$0, %r8
+	movq	%r8, %rdi
+	movq	$16, %rsi
+	callq	collect
+end20252:
+	movq	free_ptr(%rip), %r8
+	addq	$16, free_ptr(%rip)
+	movq	$3, 0(%r8)
+	movq	%r14, 8(%r8)
+	movq	$0, %r14
+	addq	$0, %r13
+	movq	8(%r8), %r12
+	movq	%rbx, %rdi
+	movq	%r8, %rsi
+	movq	%r13, %rdx
+=====>  jmp	*%r12
+
+	movq	-8(%rbp), %r14
+	movq	-16(%rbp), %r13
+	movq	-24(%rbp), %r12
+	movq	-32(%rbp), %rbx
+	addq	$32, %rsp
+	popq	%rbp
+	retq	
 \end{minted}
 \end{multicols}
 
