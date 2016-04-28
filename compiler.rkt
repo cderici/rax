@@ -100,11 +100,12 @@
        `(has-type (,op ,@(map (reveal-functions locals #f current-fn-args #f) args)) ,t)]
       [`(has-type (,rator ,rands ...) ,t)
        (let* ([r-name (match rator [`(has-type ,r-name ,r-type) r-name])]
-              [app-word (if (and tail? (not (memv r-name current-fn-args)))
-                            `tail-app ;`tail-app
+              [rator^ ((reveal-functions locals tail? current-fn-args #t) rator)]
+              [rands^ (map (reveal-functions locals #f current-fn-args #f) rands)]
+              [app-word (if (and tail? (not (memv r-name current-fn-args)) (is-function-ref rator^))
+                            `tail-app
                             `app)])
-         `(has-type (,app-word ,((reveal-functions locals tail? current-fn-args #t) rator)
-                               ,@(map (reveal-functions locals #f current-fn-args #f) rands)) ,t))]
+         `(has-type (,app-word ,rator^ ,@rands^) ,t))]
       [`(has-type ,n ,t)
        (if (symbol? n)
            (if (set-member? locals n)
@@ -115,6 +116,11 @@
 
 (define shallow-flatten
   (curry append-map identity))
+
+(define is-function-ref
+  (match-lambda
+    [`(has-type (function-ref ,_ ,_) ,_) #t]
+    [_                                   #f]))
 
 ; R5 -> R5
 (define convert-to-closures
