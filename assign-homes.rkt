@@ -18,7 +18,7 @@
  register-allocation
  (rename-out [assign-homes-old assign-homes]))
 
-(define our-caller-save (set-subtract (set-remove caller-save 'r11) (list->set arg-registers)))
+(define our-caller-save (set-remove caller-save 'r11))
 (define our-callee-save callee-save)
 
 (define dont-touch-reg-set (set `rsp `rbp `rax))
