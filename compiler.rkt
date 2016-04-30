@@ -378,30 +378,34 @@
      `(program ,i (type ,t) (defines ,@(map patch-instr defn)) ,@(append-map patch-instr instrs))]
     [x86-e `(,x86-e)]))
 
+(define print-define
+  (lambda (i)
+    (match-lambda
+      [`(define (,f) ,maxStack ,instrs ...)
+       (let ([wcsr (written-callee-save-regs instrs)])
+         (apply string-append
+                `(,(format "\t.globl ~a\n" (label f))
+                  ,(symbol->string (label f))
+                  ":\n"
+                  
+                  ,(display-instr "pushq" "%rbp")
+                  ,(display-instr "movq" "%rsp, %rbp")
+                  ,(save-callee-regs instrs i wcsr)
+                  ,(format "~aEntry:\n" (label f)) ;; afraid of _ there, so using camel style (e.g. factEntry:)
+                  "\n"
+                  ,(apply string-append (map print-x86-64-instr instrs))
+                  "\n"
+                  ,(restore-callee-regs instrs i wcsr)
+                  ,(display-instr "popq" "%rbp")
+                  ,(display-instr "retq" ""))))])))
+
 ; x86* -> actual, honest-to-goodness x86-64
 (define print-x86-64
   (match-lambda
-    [`(define (,f) ,i ,instrs ...)
-     (let ([wcsr (written-callee-save-regs instrs)])
-       (apply string-append
-              `(,(format "\t.globl ~a\n" (label f))
-                ,(symbol->string (label f))
-                ":\n"
-                
-                ,(display-instr "pushq" "%rbp")
-                ,(display-instr "movq" "%rsp, %rbp")
-                ,(save-callee-regs instrs i wcsr)
-                ,(format "~aEntry:\n" (label f)) ;; afraid of _ there, so using camel style (e.g. factEntry:)
-                "\n"
-                ,(apply string-append (map print-x86-64-instr instrs))
-                "\n"
-                ,(restore-callee-regs instrs i wcsr)
-                ,(display-instr "popq" "%rbp")
-                ,(display-instr "retq" ""))))]
     [`(program ,i (type ,t) (defines ,defn ...) ,instrs ...)
      (let ([wcsr (written-callee-save-regs instrs)])
        (apply string-append
-              `(,(string-join (map print-x86-64 defn) "\n\n")
+              `(,(string-join (map (print-define i) defn) "\n\n")
                 "\n"
                 ,(format "\t.globl ~a\n" (label `main))
                 ,(symbol->string (label `main))
