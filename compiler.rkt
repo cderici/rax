@@ -1,6 +1,6 @@
 #lang racket
 
-(require "utilities.rkt" "interp.rkt" "testing.rkt"
+(require (except-in "utilities.rkt" arg-registers) "interp.rkt" "testing.rkt"
          "flatten.rkt" "assign-homes.rkt" "typecheck.rkt"
          "uncover-types.rkt" "select-inst.rkt" "has-types.rkt")
 

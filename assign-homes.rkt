@@ -1,6 +1,7 @@
 #lang racket
 
-(require "utilities.rkt")
+(require (except-in "utilities.rkt" arg-registers) ;; there's another arg-registers defined there
+         (only-in "select-inst.rkt" arg-registers))
 
 (provide
  prep
@@ -17,7 +18,7 @@
  register-allocation
  (rename-out [assign-homes-old assign-homes]))
 
-(define our-caller-save (set-remove caller-save 'r11))
+(define our-caller-save (set-subtract (set-remove caller-save 'r11) (list->set arg-registers)))
 (define our-callee-save callee-save)
 
 (define dont-touch-reg-set (set `rsp `rbp `rax))

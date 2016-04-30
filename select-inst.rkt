@@ -2,7 +2,7 @@
 
 (require "has-types.rkt")
 
-(provide select-instructions label entrify-label)
+(provide select-instructions label entrify-label arg-registers)
 
 (define arg-registers '(rsi rdx rcx r8 r9)) ;; rdi is used for passing the rootstack variable
 
