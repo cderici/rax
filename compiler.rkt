@@ -71,56 +71,49 @@
 
 ;; R5 -> R5
 (define reveal-functions
-  (λ (locals tail? current-fn-args under-tail-app)
+  (λ (locals tail?)
     (match-lambda
       [`(has-type (let ([,x ,e]) ,body) ,t)
-       `(has-type (let ([,x ,((reveal-functions locals #f current-fn-args #f) e)])
-                    ,((reveal-functions (set-add locals x) tail? current-fn-args #f) body)) ,t)]
+       `(has-type (let ([,x ,((reveal-functions locals #f) e)])
+                    ,((reveal-functions (set-add locals x) tail?) body)) ,t)]
       [`(has-type (if ,cnd ,thn ,els) ,t)
-       `(has-type (if ,((reveal-functions locals #f current-fn-args #f)    cnd)
-                      ,((reveal-functions locals tail? current-fn-args #f) thn)
-                      ,((reveal-functions locals tail? current-fn-args #f) els)) ,t)]
+       `(has-type (if ,((reveal-functions locals #f)    cnd)
+                      ,((reveal-functions locals tail?) thn)
+                      ,((reveal-functions locals tail?) els)) ,t)]
       [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
        (let ([arg-tys (map (λ (a t) `[,a : ,t]) args tys)])
          `(has-type (lambda: (,@arg-tys) : ,ty-ret
-                      ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args) tail? current-fn-args #f) body)) ,t))]
+                      ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args) tail?) body)) ,t))]
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        (let ([fn-args (map car (filter arg-fun-type? args))])
          `(define ,args : ,ty-ret
-            ,((reveal-functions (set-union (list->set arg1) locals) tail? fn-args #f) body)))]
+            ,((reveal-functions (set-union (list->set arg1) locals) tail?) body)))]
       [`(program (type ,t) ,defines ... ,body)
        `(program (type ,t)
-                 ,@(map (reveal-functions locals #t current-fn-args #f) defines)
-                 ,((reveal-functions locals #f current-fn-args #f) body))]
+                 ,@(map (reveal-functions locals #t) defines)
+                 ,((reveal-functions locals #f) body))]
       [`(program ,defines ... ,body) ; for debugging purposes
-       `(program ,@(map (reveal-functions locals #t current-fn-args #f) defines)
-                 ,((reveal-functions locals #f current-fn-args #f) body))]
+       `(program ,@(map (reveal-functions locals #t) defines)
+                 ,((reveal-functions locals #f) body))]
       [`(has-type (,op ,args ...) ,t)
        #:when (set-member? prim-names op)
-       `(has-type (,op ,@(map (reveal-functions locals #f current-fn-args #f) args)) ,t)]
+       `(has-type (,op ,@(map (reveal-functions locals #f) args)) ,t)]
       [`(has-type (,rator ,rands ...) ,t)
        (let* ([r-name (match rator [`(has-type ,r-name ,r-type) r-name])]
-              [rator^ ((reveal-functions locals tail? current-fn-args #t) rator)]
-              [rands^ (map (reveal-functions locals #f current-fn-args #f) rands)]
-              [app-word (if (and tail? (not (memv r-name current-fn-args)) (is-function-ref rator^))
-                            `tail-app
-                            `app)])
+              [rator^ ((reveal-functions locals tail?) rator)]
+              [rands^ (map (reveal-functions locals #f) rands)]
+              [app-word (if tail? `tail-app `app)])
          `(has-type (,app-word ,rator^ ,@rands^) ,t))]
       [`(has-type ,n ,t)
        (if (symbol? n)
            (if (set-member? locals n)
                `(has-type ,n ,t)
-               `(has-type (function-ref (has-type ,n ,t) ,(and tail? under-tail-app)) ,t))
+               `(has-type (function-ref (has-type ,n ,t)) ,t))
            `(has-type ,n ,t))]
       [e e])))
 
 (define shallow-flatten
   (curry append-map identity))
-
-(define is-function-ref
-  (match-lambda
-    [`(has-type (function-ref ,_ ,_) ,_) #t]
-    [_                                   #f]))
 
 ; R5 -> R5
 (define convert-to-closures
@@ -150,21 +143,28 @@
                   [(list (cons rands^ defs2) ...)    (map closure-worker rands)]
                   [tmp                               (gensym 'closure_app_temp)]
                   [`(has-type ,_ (Vector ,rator^-t)) rator^]
-                  [t^                                (closurize-fun-ty t)])
+                  [t^                                (closurize-fun-ty t)]
+                  [label-index                       (if (equal? app-name `app)
+                                                         0    ; Non-tail-call label
+                                                         1)]) ; Tail-call label
        (cons `(has-type (let ([,tmp ,rator^])
-                          (has-type (,app-name (has-type (vector-ref (has-type ,tmp (Vector ,rator^-t)) (has-type 0 Integer))
+                          (has-type (,app-name (has-type (vector-ref (has-type ,tmp         (Vector ,rator^-t))
+                                                                     (has-type ,label-index Integer))
                                                          ,rator^-t)
                                                (has-type ,tmp _) ,@rands^)
                                     ,t^))
                         ,t^)
              (append defs1 (shallow-flatten defs2))))]
-    [`(has-type (function-ref (has-type ,f (,ty-args1 ... -> ,ty-ret1)) ,tail?) (,ty-args2 ... -> ,ty-ret2))
+    [`(has-type (function-ref (has-type ,f (,ty-args1 ... -> ,ty-ret1))) (,ty-args2 ... -> ,ty-ret2))
      (let ([ty-args1^ (map closurize-fun-ty ty-args1)]
            [ty-ret1^  (closurize-fun-ty     ty-ret1)]
            [ty-args2^ (map closurize-fun-ty ty-args2)]
            [ty-ret2^  (closurize-fun-ty     ty-ret2)])
-       (cons `(has-type (vector (has-type (function-ref (has-type ,f (,@ty-args1^ -> ,ty-ret1)) ,tail?)
-                                          (_ ,@ty-args2^ -> ,ty-ret2^)))
+       (cons `(has-type (vector
+                         (has-type (function-ref (has-type                ,f  (,@ty-args1^ -> ,ty-ret1)))
+                                   (_ ,@ty-args2^ -> ,ty-ret2^))
+                         (has-type (function-ref (has-type ,(entrify-label f) (,@ty-args1^ -> ,ty-ret1)))
+                                   (_ ,@ty-args2^ -> ,ty-ret2^)))
                         (Vector (_ ,@ty-args2^ -> ,ty-ret2^)))
              `()))]
     [`(has-type (let ([,x ,e]) ,body) ,t)
@@ -197,11 +197,12 @@
                                                                           (has-type ,n Integer))
                                                                          ,freevar-t)]) ,b) ,ty-ret)
                                   (- n 1))])
-                          (cons body^ (length freevars))
+                          (cons body^ (+ 1 (length freevars))) ; The first two elements of the closure are labels
                           freevars)])
-       (cons `(has-type (vector (has-type (function-ref (has-type ,name
-                                                                  (,@ty-args^ -> ,ty-ret^)) #f)
-                                          (_ ,@ty-args^ -> ,ty-ret^)) ,@(map has-typify freevars))
+       (cons `(has-type (vector
+                         (has-type (function-ref (has-type                ,name  (,@ty-args^ -> ,ty-ret^))) (_ ,@ty-args^ -> ,ty-ret^))
+                         (has-type (function-ref (has-type ,(entrify-label name) (,@ty-args^ -> ,ty-ret^))) (_ ,@ty-args^ -> ,ty-ret^))
+                         ,@(map has-typify freevars))
                         ,t^)
              (cons `(define (,name [,clos : _] ,@args) : ,ty-ret^
                       ,body^^) defs)))]
@@ -242,7 +243,7 @@
              (set-union (freevars cnd)
                         (freevars thn)
                         (freevars els))]
-            [`(has-type (function-ref ,f ,_) ,t) (freevars f)]
+            [`(has-type (function-ref ,f) ,t) (freevars f)]
             [`(has-type (app ,rator ,rands ...) ,t)
              (foldr set-union (set) (map freevars (cons rator rands)))]
             [`(has-type (,op ,args ...) ,t)
@@ -479,8 +480,8 @@
       [`(global-value fromspace_end) (format "~a(%rip)" (label 'fromspace_end))]
       [`(stack ,s) (format "~a(%rbp)" s)]
       
-      [`(function-ref ,l ,_) (format "~a(%rip)" (label l))]
-      [`(stack-arg ,i)       (format "~a(%rsp)" i)])))
+      [`(function-ref ,l) (format "~a(%rip)" (label l))]
+      [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
 
 (define display-instr
   (match-lambda*
@@ -530,7 +531,7 @@
 ; [Pass]
 (define r4-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("reveal-functions" ,(reveal-functions (set) #t '() #f) ,interp-scheme)
+                    ("reveal-functions" ,(reveal-functions (set) #t) ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
@@ -543,7 +544,7 @@
 ; [Pass]
 (define r5-passes `(; Implicit typecheck pass occurs at beginning
                     ("uniquify" ,(uniquify '()) ,interp-scheme)
-                    ("reveal-functions" ,(reveal-functions (set) #t '() #f) ,interp-scheme)
+                    ("reveal-functions" ,(reveal-functions (set) #t) ,interp-scheme)
                     ("convert-to-closures" ,convert-to-closures ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
                     ("expose-allocation" ,(expose-allocation 12800) ,interp-C)

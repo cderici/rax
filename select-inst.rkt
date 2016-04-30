@@ -2,7 +2,7 @@
 
 (require "has-types.rkt")
 
-(provide select-instructions label)
+(provide select-instructions label entrify-label)
 
 (define arg-registers '(rsi rdx rcx r8 r9)) ;; rdi is used for passing the rootstack variable
 
@@ -48,7 +48,7 @@
     ((empty? body) '())
     (else
      (match (car body)
-       [`(assign ,var (function-ref ,f ,_))
+       [`(assign ,var (function-ref ,f))
         (append (filter (λ (top) (eqv? f (car (list-ref top 1)))) toplevels)
                 (find-top-calls (cdr body) toplevels))]
        [else (find-top-calls (cdr body) toplevels)]))))
@@ -73,6 +73,11 @@
                                          char->integer) c))))
             string->list
             symbol->string))
+
+(define entrify-label
+  (λ (f)
+    (string->symbol (string-append (symbol->string f)
+                                   "Entry"))))
 
 (define select-instructions-inner
   (lambda (assignments+return current-rootstack-var added-vars)
@@ -141,10 +146,8 @@
                      (sete (byte-reg al))
                      (movzbq (byte-reg al) (var ,var))))]
                 ;; function-ref
-                [`(function-ref ,f ,tail?)
-                 `((leaq (function-ref ,(if tail? (string->symbol (string-append (symbol->string f) "Entry"))
-                                            f) ,tail?)
-                         (var ,var)))]
+                [`(function-ref ,f)
+                 `((leaq (function-ref ,f) (var ,var)))]
                 
                 ;; function application
                 [`(app ,fun ,args ...)
