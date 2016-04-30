@@ -7,7 +7,7 @@ endif
 dummy: # ...
     # ...
 
-.PHONY: clean test paper
+.PHONY: clean test proposal
 
 CC     = gcc
 RACKET = racket
