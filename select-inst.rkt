@@ -51,6 +51,10 @@
        [`(assign ,var (function-ref ,f))
         (append (filter (λ (top) (eqv? f (car (list-ref top 1)))) toplevels)
                 (find-top-calls (cdr body) toplevels))]
+       [`(if ,cnd ,thns ,elss)
+        (append (find-top-calls (list cnd) toplevels)
+                (find-top-calls thns toplevels)
+                (find-top-calls elss toplevels))]
        [else (find-top-calls (cdr body) toplevels)]))))
 
 (define label

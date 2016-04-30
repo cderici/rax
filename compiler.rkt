@@ -373,9 +373,11 @@
      `((movq ,arg1 (reg rax))
        (,op  (reg rax) ,arg2))]
     [`(define (,f) ,i ,instrs ...)
-     `(define (,f) ,i ,@(append-map patch-instr instrs))]
-    [`(program ,i (type ,t) (defines ,defn ...) ,instrs ...)
-     `(program ,i (type ,t) (defines ,@(map patch-instr defn)) ,@(append-map patch-instr instrs))]
+     (values `(define (,f) ,i ,@(append-map patch-instr instrs)) i)]
+    [`(program ,prog-i (type ,t) (defines ,defn ...) ,instrs ...)
+     (let-values ([(patched-defns i-s) (map2 patch-instr defn)])
+       (let ([imax (apply max (cons prog-i i-s))])
+         `(program ,imax (type ,t) (defines ,@patched-defns) ,@(append-map patch-instr instrs))))]
     [x86-e `(,x86-e)]))
 
 (define print-define
