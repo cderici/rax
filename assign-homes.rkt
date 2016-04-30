@@ -101,7 +101,7 @@
     [`(,(or `addq `subq `cmpq `salq `sarq `xorq `andq `orq) ,arg1 ,arg2)
      (set-union (variable arg1)
                 (variable arg2))]
-    [`(,(or `negq `notq) ,arg) (variable arg)]
+    [`(,(or `negq `notq `jmp) ,arg) (variable arg)]
     [(or `(movq ,arg1 (offset ,arg2 ,n)) `(movq (offset ,arg1 ,n) ,arg2)) (set-union (variable arg1) (variable arg2))]
     [`(movq ,arg1 ,_) (variable arg1)]
     [`(indirect-callq ,arg) (variable arg)]
