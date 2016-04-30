@@ -101,11 +101,11 @@
                  [maxStack (let* ([topCallDefs (find-top-calls body toplevels)]
                                   [max-stacks (cons 0 (map (λ (def) (let ([num-var (length (cdr (list-ref def 1)))])
                                                                       (if (<= num-var 5) 0 (- num-var 5)))) topCallDefs))])
-                             (apply max max-stacks))])
+                             (+ stack-places-num (apply max max-stacks)))])
             (let-values ([(new-body new-vars) (select-instructions-inner body rootstack-local-var '())])
               (values `(define (,f) ,(add1 num-vars) (,(cons rootstack-local-var (append arg-names new-vars local-vars)) ,maxStack) ,@init ,@new-body)
                       new-vars
-                      stack-places-num)))]
+                      maxStack)))]
          ;; assign
          [`(assign ,var ,rhs)
           (let-values ([(new-assignments new-added-vars)
