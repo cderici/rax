@@ -552,7 +552,7 @@
                     ("reveal-functions" ,(reveal-functions (set)) ,interp-scheme)
                     ("convert-to-closures" ,convert-to-closures ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 1280000) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)

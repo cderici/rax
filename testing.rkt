@@ -96,10 +96,9 @@
       (tests "torture" typechecker passes interp-scheme "torture" torture-range))
 
     (define explosion
-      (tests "explosion" typechecker passes interp-scheme "explosion" '(0)))
+      (tests "explosion" typechecker passes interp-scheme "explosion" '(1)))
 
     (explosion)
-    #|
     (r0-tests)
     (r1-tests)
     (r1a-tests)
@@ -114,6 +113,5 @@
     (uniquify-tests)
     (flatten-tests)
     (tc-tests)
-    |#
     ;(torture-tests)
     (display "all tests passed!") (newline)))
