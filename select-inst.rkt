@@ -21,7 +21,7 @@
         (set! toplevel-names (map (λ (def) (car (list-ref def 1))) defs))
         (let-values ([(new-defines define-vars max-stack) (process-defines defs)]
                      [(new-assignments+return added-vars) (select-instructions-inner assignments+return (gensym 'rootstack.) '())])
-          `(program (,(clean-vars-hack (remove-duplicates (append vars added-vars))) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return)))])
+          `(program (,(remove-duplicates (append vars added-vars)) ,max-stack) (type ,t) (defines ,@new-defines) ,@new-assignments+return)))])
    strip-has-types)) ; Discard types; they're no longer needed
 
 (define (process-defines defines)
