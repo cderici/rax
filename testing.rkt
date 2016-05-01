@@ -71,7 +71,7 @@
     (define r4-tests
       (tests "Jeremy's R4 tests" typechecker passes interp-scheme "r4" r4-range))
 
-    (define r5-range (append (irange 1 9) (irange 11 12))) ; r5_10 is broken
+    (define r5-range (append (irange 1 10) (irange 11 12))) ; r5_9 doesn't work sporadically, r5_10 is broken
     (define r5-tests
       (tests "Jeremy's R5 tests" typechecker passes interp-scheme "r5" r5-range))
 
@@ -95,11 +95,11 @@
     (define torture-tests
       (tests "torture" typechecker passes interp-scheme "torture" torture-range))
 
-    (define tco-range (irange 1 2))
+    (define tco-range (irange 1 3))
     (define tco-tests
       (tests "tco-tests" typechecker passes interp-scheme "tco" tco-range))
 
-    (tco-tests)
+    ;(tco-tests)
 
     (r0-tests)
     (r1-tests)

@@ -83,7 +83,7 @@
       [`(has-type (lambda: ([,args : ,tys] ...) : ,ty-ret ,body) ,t)
        (let ([arg-tys (map (λ (a t) `[,a : ,t]) args tys)])
          `(has-type (lambda: (,@arg-tys) : ,ty-ret
-                      ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args) tail?) body)) ,t))]
+                      ,((reveal-functions (foldr (λ (a l) (set-add l a)) locals args) #t) body)) ,t))]
       [`(define ,(and args (list fun `[,arg1 : ,ty1] ...)) : ,ty-ret ,body)
        (let ([fn-args (map car (filter arg-fun-type? args))])
          `(define ,args : ,ty-ret
@@ -119,8 +119,9 @@
 (define convert-to-closures
   (match-lambda
     [`(program (type ,t) ,defines ... ,body)
-     (match-let ([(list (cons converted-defs lam-defs1) ...) (map closure-worker defines)]
-                 [(cons body^ lam-defs2) (closure-worker body)])
+     (match-let* ([def-names (map def-name defines)]
+                  [(list (cons converted-defs lam-defs1) ...) (map (closure-worker def-names) defines)]
+                  [(cons body^ lam-defs2) ((closure-worker def-names) body)])
        `(program (type ,t)
                  ,@(append converted-defs
                            (shallow-flatten lam-defs1)
@@ -129,92 +130,93 @@
 
 ; R5 -> (pairof R5 defines)
 (define closure-worker
-  (match-lambda
-    [`(define ,(list fun `[,xs : ,ty-args] ...) : ,ty-ret ,body)
-     (match-let* ([clos              (gensym 'clos_dummy_param)]
-                  [args              (map (λ (x ty-arg) `[,x : ,(closurize-fun-ty ty-arg)]) xs ty-args)]
-                  [new-args          (cons `[,clos : _] args)]
-                  [new-ty-ret        (closurize-fun-ty ty-ret)]
-                  [(cons body^ defs) (closure-worker body)])
-       (cons `(define (,fun ,@new-args) : ,new-ty-ret ,body^)
-             defs))]
-    [`(has-type (,(and app-name (or `app `tail-app)) ,rator ,rands ...) ,t)
-     (match-let* ([(cons rator^ defs1)               (closure-worker rator)]
-                  [(list (cons rands^ defs2) ...)    (map closure-worker rands)]
-                  [tmp                               (gensym 'closure_app_temp)]
-                  [`(has-type ,_ (Vector ,rator^-t)) rator^]
-                  [t^                                (closurize-fun-ty t)]
-                  [label-index                       (if (equal? app-name `app)
-                                                         0    ; Non-tail-call label
-                                                         1)]) ; Tail-call label
-       (cons `(has-type (let ([,tmp ,rator^])
-                          (has-type (,app-name (has-type (vector-ref (has-type ,tmp         (Vector ,rator^-t))
-                                                                     (has-type ,label-index Integer))
-                                                         ,rator^-t)
-                                               (has-type ,tmp _) ,@rands^)
-                                    ,t^))
-                        ,t^)
-             (append defs1 (shallow-flatten defs2))))]
-    [`(has-type (function-ref (has-type ,f (,ty-args1 ... -> ,ty-ret1))) (,ty-args2 ... -> ,ty-ret2))
-     (let ([ty-args1^ (map closurize-fun-ty ty-args1)]
-           [ty-ret1^  (closurize-fun-ty     ty-ret1)]
-           [ty-args2^ (map closurize-fun-ty ty-args2)]
-           [ty-ret2^  (closurize-fun-ty     ty-ret2)])
-       (cons `(has-type (vector
-                         (has-type (function-ref (has-type                ,f  (,@ty-args1^ -> ,ty-ret1)))
-                                   (_ ,@ty-args2^ -> ,ty-ret2^))
-                         (has-type (function-ref (has-type ,(entrify-label f) (,@ty-args1^ -> ,ty-ret1)))
-                                   (_ ,@ty-args2^ -> ,ty-ret2^)))
-                        (Vector (_ ,@ty-args2^ -> ,ty-ret2^)))
-             `()))]
-    [`(has-type (let ([,x ,e]) ,body) ,t)
-     (match-let ([(cons e^    defs1) (closure-worker e)]
-                 [(cons body^ defs2) (closure-worker body)]
-                 [t^                 (closurize-fun-ty t)])
-       (cons `(has-type (let ([,x ,e^]) ,body^) ,t^)
-             (append defs1 defs2)))]
-    [`(has-type (if ,cnd ,thn ,els) ,t)
-     (match-let ([(cons cnd^ defs1) (closure-worker cnd)]
-                 [(cons thn^ defs2) (closure-worker thn)]
-                 [(cons els^ defs3) (closure-worker els)]
-                 [t^                (closurize-fun-ty t)])
-       (cons `(has-type (if ,cnd^ ,thn^ ,els^) ,t^)
-             (append defs1 defs2 defs3)))]
-    [(and lam `(has-type (lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body) ,t))
-     (match-let* ([name (gensym "lam")]
-                  [clos (gensym "clos_param_lam")]
-                  [ty-args^ (map closurize-fun-ty ty-args)]
-                  [args (map (λ (x ty-arg) `[,x : ,ty-arg]) xs ty-args^)]
-                  [ty-ret^ (closurize-fun-ty ty-ret)]
-                  [t^      (closurize-fun-ty t)]
-                  [freevars (fvs lam)]
-                  [(cons body^ defs) (closure-worker body)]
-                  [(cons body^^ _)
-                   (foldr (match-lambda**
-                           [((cons freevar-e freevar-t) (cons b n))
-                            (cons `(has-type (let ([,freevar-e (has-type (vector-ref
-                                                                          (has-type ,clos _)
-                                                                          (has-type ,n Integer))
-                                                                         ,freevar-t)]) ,b) ,ty-ret)
-                                  (- n 1))])
-                          (cons body^ (+ 1 (length freevars))) ; The first two elements of the closure are labels
-                          freevars)])
-       (cons `(has-type (vector
-                         (has-type (function-ref (has-type                ,name  (,@ty-args^ -> ,ty-ret^))) (_ ,@ty-args^ -> ,ty-ret^))
-                         (has-type (function-ref (has-type ,(entrify-label name) (,@ty-args^ -> ,ty-ret^))) (_ ,@ty-args^ -> ,ty-ret^))
-                         ,@(map has-typify freevars))
-                        ,t^)
-             (cons `(define (,name [,clos : _] ,@args) : ,ty-ret^
-                      ,body^^) defs)))]
-    [`(has-type (,op ,args ...) ,t)
-     #:when (set-member? prim-names op)
-     (match-let ([(list (cons args^ defs) ...) (map closure-worker args)]
-                 [t^                           (closurize-fun-ty t)])
-       (cons `(has-type (,op ,@args^) ,t^)
-             (shallow-flatten defs)))]
-    [`(has-type ,e ,t)
-     (cons `(has-type ,e ,(closurize-fun-ty t))
-           `())]))
+  (λ (toplevels)
+    (match-lambda
+      [`(define ,(list fun `[,xs : ,ty-args] ...) : ,ty-ret ,body)
+       (match-let* ([clos              (gensym 'clos_dummy_param)]
+                    [args              (map (λ (x ty-arg) `[,x : ,(closurize-fun-ty ty-arg)]) xs ty-args)]
+                    [new-args          (cons `[,clos : _] args)]
+                    [new-ty-ret        (closurize-fun-ty ty-ret)]
+                    [(cons body^ defs) ((closure-worker toplevels) body)])
+         (cons `(define (,fun ,@new-args) : ,new-ty-ret ,body^)
+               defs))]
+      [`(has-type (,(and app-name (or `app `tail-app)) ,rator ,rands ...) ,t)
+       (match-let* ([(cons rator^ defs1)               ((closure-worker toplevels) rator)]
+                    [(list (cons rands^ defs2) ...)    (map (closure-worker toplevels) rands)]
+                    [tmp                               (gensym 'closure_app_temp)]
+                    [`(has-type ,_ (Vector ,rator^-t)) rator^]
+                    [t^                                (closurize-fun-ty t)]
+                    [label-index                       (if (equal? app-name `app)
+                                                           0    ; Non-tail-call label
+                                                           1)]) ; Tail-call label
+         (cons `(has-type (let ([,tmp ,rator^])
+                            (has-type (,app-name (has-type (vector-ref (has-type ,tmp         (Vector ,rator^-t))
+                                                                       (has-type ,label-index Integer))
+                                                           ,rator^-t)
+                                                 (has-type ,tmp _) ,@rands^)
+                                      ,t^))
+                          ,t^)
+               (append defs1 (shallow-flatten defs2))))]
+      [`(has-type (function-ref (has-type ,f (,ty-args1 ... -> ,ty-ret1))) (,ty-args2 ... -> ,ty-ret2))
+       (let ([ty-args1^ (map closurize-fun-ty ty-args1)]
+             [ty-ret1^  (closurize-fun-ty     ty-ret1)]
+             [ty-args2^ (map closurize-fun-ty ty-args2)]
+             [ty-ret2^  (closurize-fun-ty     ty-ret2)])
+         (cons `(has-type (vector
+                           (has-type (function-ref (has-type                ,f  (,@ty-args1^ -> ,ty-ret1)))
+                                     (_ ,@ty-args2^ -> ,ty-ret2^))
+                           (has-type (function-ref (has-type ,(entrify-label f) (,@ty-args1^ -> ,ty-ret1)))
+                                     (_ ,@ty-args2^ -> ,ty-ret2^)))
+                          (Vector (_ ,@ty-args2^ -> ,ty-ret2^)))
+               `()))]
+      [`(has-type (let ([,x ,e]) ,body) ,t)
+       (match-let ([(cons e^    defs1) ((closure-worker toplevels) e)]
+                   [(cons body^ defs2) ((closure-worker toplevels) body)]
+                   [t^                 (closurize-fun-ty t)])
+         (cons `(has-type (let ([,x ,e^]) ,body^) ,t^)
+               (append defs1 defs2)))]
+      [`(has-type (if ,cnd ,thn ,els) ,t)
+       (match-let ([(cons cnd^ defs1) ((closure-worker toplevels) cnd)]
+                   [(cons thn^ defs2) ((closure-worker toplevels) thn)]
+                   [(cons els^ defs3) ((closure-worker toplevels) els)]
+                   [t^                (closurize-fun-ty t)])
+         (cons `(has-type (if ,cnd^ ,thn^ ,els^) ,t^)
+               (append defs1 defs2 defs3)))]
+      [(and lam `(has-type (lambda: ([,xs : ,ty-args] ...) : ,ty-ret ,body) ,t))
+       (match-let* ([name (gensym "lam")]
+                    [clos (gensym "clos_param_lam")]
+                    [ty-args^ (map closurize-fun-ty ty-args)]
+                    [args (map (λ (x ty-arg) `[,x : ,ty-arg]) xs ty-args^)]
+                    [ty-ret^ (closurize-fun-ty ty-ret)]
+                    [t^      (closurize-fun-ty t)]
+                    [freevars (remove* toplevels (fvs lam) (λ (x y) (eqv? x (car y))))]
+                    [(cons body^ defs) ((closure-worker toplevels) body)]
+                    [(cons body^^ _)
+                     (foldr (match-lambda**
+                             [((cons freevar-e freevar-t) (cons b n))
+                              (cons `(has-type (let ([,freevar-e (has-type (vector-ref
+                                                                            (has-type ,clos _)
+                                                                            (has-type ,n Integer))
+                                                                           ,freevar-t)]) ,b) ,ty-ret)
+                                    (- n 1))])
+                            (cons body^ (+ 1 (length freevars))) ; The first two elements of the closure are labels
+                            freevars)])
+         (cons `(has-type (vector
+                           (has-type (function-ref (has-type                ,name  (,@ty-args^ -> ,ty-ret^))) (_ ,@ty-args^ -> ,ty-ret^))
+                           (has-type (function-ref (has-type ,(entrify-label name) (,@ty-args^ -> ,ty-ret^))) (_ ,@ty-args^ -> ,ty-ret^))
+                           ,@(map has-typify freevars))
+                          ,t^)
+               (cons `(define (,name [,clos : _] ,@args) : ,ty-ret^
+                        ,body^^) defs)))]
+      [`(has-type (,op ,args ...) ,t)
+       #:when (set-member? prim-names op)
+       (match-let ([(list (cons args^ defs) ...) (map (closure-worker toplevels) args)]
+                   [t^                           (closurize-fun-ty t)])
+         (cons `(has-type (,op ,@args^) ,t^)
+               (shallow-flatten defs)))]
+      [`(has-type ,e ,t)
+       (cons `(has-type ,e ,(closurize-fun-ty t))
+             `())])))
 
 (define has-typify
   (match-lambda
@@ -244,7 +246,7 @@
                         (freevars thn)
                         (freevars els))]
             [`(has-type (function-ref ,f) ,t) (freevars f)]
-            [`(has-type (app ,rator ,rands ...) ,t)
+            [`(has-type (,(or `app `tail-app) ,rator ,rands ...) ,t)
              (foldr set-union (set) (map freevars (cons rator rands)))]
             [`(has-type (,op ,args ...) ,t)
              #:when (set-member? prim-names op)
