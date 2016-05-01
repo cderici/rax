@@ -15,4 +15,4 @@
                    [n : Integer]) : Integer
   (ackermann-cps (lambda: ([x : Integer]) : Integer x) m n))
 
-(ackermann 3 3)
+(ackermann 3 5)

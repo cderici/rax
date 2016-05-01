@@ -99,7 +99,7 @@
     (define tco-tests
       (tests "tco-tests" typechecker passes interp-scheme "tco" tco-range))
 
-    ;(tco-tests)
+    (tco-tests)
 
     (r0-tests)
     (r1-tests)

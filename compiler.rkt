@@ -285,18 +285,18 @@
                                                                                     (number->string void-count))))])
                         `(assign ,void-var (vector-set! ,lhs ,position ,vector-element))))
                     e (range len))))]
-        
+
         [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
          (let* ([new-body (foldr append null (map (expose-allocation heap-size-bytes) body))]
                 [new-vars (getVars new-body)])
            `(define (,f ,@arg-types) : ,t ,(remove-duplicates (append new-vars vars*)) ,@new-body))]
-        
+
         [`(program (,vars ...) (type ,t) (defines ,defs ...) ,main-assignments ... (return ,final-e))
          (let* ([new-defines (map (expose-allocation heap-size-bytes) defs)]
                 [new-main-assignments (foldr append null (map (expose-allocation heap-size-bytes) main-assignments))]
                 [new-vars (remove-duplicates (append (getVars new-main-assignments) (foldr append null (map getVars new-defines))))])
            `(program ,new-vars (type ,t) (defines ,@new-defines) (initialize 10000 ,heap-size-bytes) ,@new-main-assignments (return ,final-e)))]
-        
+
         [else `(,e)]))))
 
 (define (uncover-live-roots assignments current-lives out)
@@ -308,7 +308,7 @@
                (uncover-live-roots (cdr assignments) current-lives (cons `(has-type ,@e-uncovered ,t) out)))]
             [`(assign ,var (allocate ,n (Vector ,some-type ...)))
              (uncover-live-roots (cdr assignments) (cons var current-lives) (cons (car assignments) out))]
-            
+
             [`(if (collection-needed? ,n) ((collect ,n)) ())
              (uncover-live-roots (cdr assignments) current-lives
                                  (cons `(if (collection-needed? ,n)
@@ -327,7 +327,7 @@
       [`(define (,f ,arg-types ...) : ,t ,vars* ,body ...)
        (let ([new-body (uncover-live-roots body '() '())])
          `(define (,f ,@arg-types) : ,t ,vars* ,@new-body))]
-      
+
       [`(program ,vars-without-types (type ,t) (defines ,defs ...) (initialize ,s ,h) ,assignments ... (return ,final-e))
        (let ([new-defines (map uncover-call-live defs)]
              [new-assignments (uncover-live-roots assignments '() '())])
@@ -391,7 +391,7 @@
                 `(,(format "\t.globl ~a\n" (label f))
                   ,(symbol->string (label f))
                   ":\n"
-                  
+
                   ,(display-instr "pushq" "%rbp")
                   ,(display-instr "movq" "%rsp, %rbp")
                   ,(save-callee-regs instrs i wcsr)
@@ -481,13 +481,13 @@
       [(or `(reg ,r) `(byte-reg ,r))  (format "%~a" r)]
       [`(offset (reg ,r) ,n) (format "~a(%~a)" n r)]
       [`(offset (stack ,s) ,n) (error "wtf r u doin")]
-      
+
       ;; keeping them seperate to easily see if we need any other global-value
       [`(global-value rootstack_begin) (format "~a(%rip)" (label 'rootstack_begin))]
       [`(global-value free_ptr) (format "~a(%rip)" (label 'free_ptr))]
       [`(global-value fromspace_end) (format "~a(%rip)" (label 'fromspace_end))]
       [`(stack ,s) (format "~a(%rbp)" s)]
-      
+
       [`(function-ref ,l) (format "~a(%rip)" (label l))]
       [`(stack-arg ,i)    (format "~a(%rsp)" i)])))
 
@@ -555,7 +555,7 @@
                     ("reveal-functions" ,(reveal-functions (set) #t) ,interp-scheme)
                     ("convert-to-closures" ,convert-to-closures ,interp-scheme)
                     ("flatten" ,flatten ,interp-C)
-                    ("expose-allocation" ,(expose-allocation 12800) ,interp-C)
+                    ("expose-allocation" ,(expose-allocation 1280000) ,interp-C)
                     ("uncover-call-live-roots" ,uncover-call-live ,interp-C)
                     ("select instructions" ,select-instructions ,interp-x86)
                     ("register-allocation" ,(register-allocation 5) ,interp-x86)
