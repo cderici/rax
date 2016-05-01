@@ -95,7 +95,7 @@
     (define torture-tests
       (tests "torture" typechecker passes interp-scheme "torture" torture-range))
 
-    (define tco-range (irange 1 3))
+    (define tco-range (irange 1 4))
     (define tco-tests
       (tests "tco-tests" typechecker passes interp-scheme "tco" tco-range))
 

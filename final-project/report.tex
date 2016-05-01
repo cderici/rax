@@ -4,21 +4,57 @@
 \usepackage{enumerate}
 \usepackage{latexsym}
 \usepackage{xparse}
+\usepackage{minted}
 
 \begin{document}
- 
-\title{Tail-call optimization in R5\vspace{-2ex}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% YO CANER %%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Here's the report requirements, as listed on canvas.iu.edu:
+%
+% You final project will include a written report, the source code for your
+% compiler (on github), and the tests for your compiler.
+%
+% The written report should be 3-5 pages for undergraduates and 5-7 pages for
+% graduate students. The report should include the following:
+%
+%   * What problem does your project solve? Or put another way, provide
+%     documentation to a hypothetical user of your compiler regarding what your
+%     project does for them, without discussing implementation details. Or put
+%     yet another way, what are the goals of your project? This part of your
+%     report could include example programs, syntax definitions, and definitional
+%     interpreters.
+%
+%   * How does your project solve the problem? Give an overview of your
+%     implementation and then discuss the most important details, which should
+%     include both the trickiest parts but also the most important parts in
+%     terms of having your implementation achieve its stated goals.
+%
+%   * Provide evidence that your project achieves its goals. This is called an
+%     "evaluation". Describe any tests, experiments, or reasoning that you have
+%     conducted to evaluate whether your implementation meets your stated goals.
+%
+%   * Clearly describe which goals have been achieved at the time of turning in
+%     your project and which goals were unfinished.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\title{Tail-call optimization in $R_5$\vspace{-2ex}}
 \author{Caner Derici and Ryan Scott} 
  
 \maketitle
 
 \begin{abstract}
- TODO: An overview of what TCO, how we implemented it in R5, and what it gained us.
+ TODO: An overview of what TCO, how we implemented it in $R_5$, and what it gained us.
 \end{abstract}
 
 \section{Function calls in R5}
 
 \section{Why tail-call optimization?}
+
+\section{Project goals}
 
 \section{Code changes}
 
@@ -26,7 +62,70 @@
 
 To instill a sense of appreciation for how much time and space TCO saves when running
 compiled programs, we developed two microbenchmarks designed to demonstrate the benefits
-of TCO. The first such microbenchmark 
+of TCO. The first such microbenchmark is the Ackermann function $A$, which is defined
+mathematically as follows:
+
+$$
+A(m, n) = \begin{cases}
+  n+1               & \mbox{if } m = 0 \\
+  A(m-1, 1)         & \mbox{if } m > 0 \mbox{ and } n = 0 \\
+  A(m-1, A(m, n-1)) & \mbox{if } m > 0 \mbox{ and } n > 0.
+\end{cases}
+$$
+
+$A$ is of particular interest to computer scientists not only
+because of its interesting computability properties, but also because it can lead
+to extremely deep levels of recursion, making it useful as a performance benchmark.
+Note that while we can define $A$ straightforwardly in $R_5$, it doesn't show off
+the benefits of TCO as much as it could due to the call to $A$ in non-tail position
+in the third case. Therefore, the program we will benchmark will be converted
+to continuation-passing style to leverage more tail calls:
+
+\begin{minted}[fontsize=\small]{Scheme}
+(define (ackermann-cps [cont : (Integer -> Integer)]
+                       [m : Integer] [n : Integer]) : Integer
+  (if (eq? m 0) (cont (+ n 1))
+      (if (eq? n 0)
+          (ackermann-cps cont (+ m (- 1)) 1)
+          (ackermann-cps
+            (lambda: ([x : Integer]) : Integer (ackermann-cps cont (+ m (- 1)) x))
+            m (+ n (- 1))))))
+(define (ackermann [m : Integer] [n : Integer]) : Integer
+  (ackermann-cps (lambda: ([x : Integer]) : Integer x) m n))
+(ackermann 3 5)
+\end{minted}
+
+We compiled this program with two versions of our $R_5$ compiler---
+one with TCO enabled, and one without it---and ran the compiled code
+using the \verb+/usr/bin/time+ program on Linux.
+
+The results for the compiler with TCO:
+
+\begin{minted}[fontsize=\small]{text}
+$ /usr/bin/time -v ./a.out 
+253     ...
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.00
+        ...
+        Maximum resident set size (kbytes): 3252
+        ...
+        Minor (reclaiming a frame) page faults: 525
+        ...
+\end{minted}
+
+The results for the compiler without TCO:
+
+\begin{minted}[fontsize=\small]{text}
+$ /usr/bin/time -v ./a.out 
+253     ...
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.00
+        ...
+        Maximum resident set size (kbytes): 8560
+        ...
+        Minor (reclaiming a frame) page faults: 1848
+        ...
+\end{minted}
+
+
 
 \section{Design considerations and future work}
 
