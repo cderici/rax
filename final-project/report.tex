@@ -51,12 +51,38 @@
 \end{abstract}
 
 \section{Function calls in R5}
+Caner
 
 \section{Why tail-call optimization?}
+Caner
 
 \section{Project goals}
 
+When we first proposed this project, we divided up the work into three milestones,
+in order of increasing difficulty:
+
+\begin{enumerate}
+ \item Apply tail call optimization only to first-order functions which use
+       immediate tail recursion.
+ \item Apply tail cail optimization to first-order functions that are mutually
+       tail-recursive.
+ \item  Apply tail cail optimization to all tail cails, even those involving
+        higher-order function arguments and lambdas.
+\end{enumerate}
+
+We were confident in our ability to complete 1 and 2, but not as certain whether
+we could successfully complete 3. In our original estimate, we believed that
+implementing 3 correctly would involve applying inter-procedural static analysis
+to determine which code paths one could go through in a program. However, we
+realized that achieving 3 was much simpler if we adopted a strategy of storing
+multiple labels in a closure (which we detail in the following section).
+
+This approach turned out to work extremely well in $R_5$, and required none of the
+fancy static analysis that we were afraid to implement. As a result, we successfully
+completed all three milestones.
+
 \section{Code changes}
+Caner
 
 \section{Measuring the benefits of TCO}
 
@@ -152,5 +178,37 @@ x86 instructions = faster runtime, TCO is certainly preferable, and from a
 memory usage perspective, there is demonstrable evidence that TCO wins.
 
 \section{Design considerations and future work}
+
+We wish to emphasize that while our work successfully adds TCO to $R_5$, it is by
+no means an \textit{optimal} solution. In particular, we made an extreme simplification
+by requiring that all top-level \verb+define+s allocate (and deallocate) the exact
+same amount of stack space. Although this makes it possible for a series of tail calls
+to successfully finish in any \verb+define+d function, it is also quite wasteful, since
+all functions now must allocate as much stack space as possible.
+
+It is difficult to envision a robust solution to this problem, since given the existence
+of higher-order functions, it can be difficult to know statically all possible paths
+through \verb+define+d functions. One idea is to change the generated code such that
+closures also store how much stack space the underlying function requires, and creating
+a different conclusion for tail calls that \verb+addq+s \verb+%rsp+ an amount equal
+to the stack space number inside the closure. There would have to be an additional
+runtime cost associated with checking if a function should \verb+jmp+ to the normal
+conclusion or the special tail-call conclusion, but the cost may be worthwhile
+given the amount of memory this technique could save.
+
+Another area for improvement is in the generated code for closures themselves.
+Currently, closures have two separate entries for non-tail-call labels (e.g.,
+\verb+foo+) and tail-call label (e.g., \verb+fooEntry+). This seems like a code
+smell, since we always know that a tail-call label is just the original label with
+the suffix \verb+Entry+. It may be possible, using some assembly trickery, to
+retrieve the non-tail-call label and concatenate \verb+Entry+ on the end to
+synthesize the tail-call label. If such a thing is possible, it would allow us
+to save 8 bytes per closure.
+
+Space considerations notwithstanding, our project proves that TCO is inside the
+realm of possibility for $R_5$, and it can successfully coexist with more advanced
+language features like higher-order function arguments and lambdas. This is good
+news, because it means that even first-time compiler authors can successfully
+create a Scheme that adheres to the specification!
 
 \end{document}
