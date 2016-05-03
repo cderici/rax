@@ -125,7 +125,31 @@ $ /usr/bin/time -v ./a.out
         ...
 \end{minted}
 
+The difference is clear: enabling TCO saves about 5.3 MB worth of RAM usage, and
+prevents 1323 page faults! From a memory perspective, TCO is an obvious win.
 
+What is suprising, however, is that both programs run nearly instantly. We would
+have expected the code with TCO to run a little slower, but in practice, this
+does not turn out to be the case. In face, even with the following microbenchmark
+designed to churn through millions of function calls:
+
+\begin{minted}[fontsize=\small]{Scheme}
+(define (make-your-cpu-get-hot [x : Integer] [y : Integer]) : Integer
+  (if (eq? 0 x)
+      42
+      (make-your-cpu-get-hot (+ x (- y)) y)))
+(let ([a-little-warmer (lambda: () : Integer (make-your-cpu-get-hot 100000 1))])
+  (let ([a0   (a-little-warmer)])
+  ...
+  (let ([a499 (a-little-warmer)])
+    (a-little-warmer))...))
+\end{minted}
+
+Both compilers, with and without TCO, produce code which finishes in less than one
+second. We learned that adjusting the stack pointer is not as computationally
+expensive as we had originally thought. Still, from the perspective that fewer
+x86 instructions = faster runtime, TCO is certainly preferable, and from a
+memory usage perspective, there is demonstrable evidence that TCO wins.
 
 \section{Design considerations and future work}
 
