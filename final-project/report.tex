@@ -169,77 +169,78 @@ fancy static analysis that we were afraid to implement. As a result, we successf
 completed all three milestones.
 
 \section{Code changes}
-Along with the minor improvements, there are two main ideas in
-implementing tail-call optimizations in $R_5$.
+Alongside several minor fixes, we achieved TCO in $R_5$ by implementing
+two major changes:
 
 \begin{itemize}
-\item Creating the necessary entry labeling for functions to be called
-  (i.e. jumped) from a tail-position, and producing unconditional
-  jumps (instead of regular \emph{callq}s) for all the tail-calls inside.
+\item Create the necessary entry labels for functions to be invoked
+  (i.e. jumped) from a tail position, and producing unconditional
+  \verb+jmp+s (instead of regular \verb+callq+s) for all the tail calls inside.
 \item Changing the internal closure representation to contain the
-  tail-call entry label along with the regular label carried by the
-  \emph{function-ref}.
+  tail-call entry label alongside the regular label carried by the
+  \verb+function-ref+.
 \end{itemize}
 
 \subsection{Labeling}
 
-$R_5$ originally prouduces a single label for a function to be used by
-the assembler when making a function call. We created an additional
-label to be used to enter the function when it's called (i.e. jumped)
-from a tail-position inside of its caller function. Below is the code
-produced for the explosion function with the labels.
+Before, $R_5$ produced a single assembly label for each function, which is used
+when making function calls. We created an additional
+label called the \emph{entry label}, which is always suffixed with \verb+Entry+.
+An entry label is used to enter the function when it's invoked (i.e. jumped)
+from a tail position inside of its caller function. Below is the code
+produced for the \verb+explosion+ function with both kinds of labels:
 
 \begin{multicols}{2}
-\begin{minted}[fontsize=\tiny]{as}
-	.globl explosion
+\begin{minted}[fontsize=\small]{as}
+        .globl explosion
 explosion:
-	pushq	%rbp
-	movq	%rsp, %rbp
-	subq	$32, %rsp
-	movq	%r14, -8(%rbp)
-	movq	%r13, -16(%rbp)
-	movq	%r12, -24(%rbp)
-	movq	%rbx, -32(%rbp)
+        pushq   %rbp
+        movq    %rsp, %rbp
+        subq    $32, %rsp
+        movq    %r14, -8(%rbp)
+        movq    %r13, -16(%rbp)
+        movq    %r12, -24(%rbp)
+        movq    %rbx, -32(%rbp)
 explosionEntry:  <========
 
-	movq	%rdi, %rbx
-	movq	%rsi, %r13
-	movq	%rdx, %r13
-	leaq	explosionEntry(%rip), %r14
-	movq	free_ptr(%rip), %r8
-	addq	$16, %r8
-	cmpq	fromspace_end(%rip), %r8
-	setl	%al
-	movzbq	%al, %r8
-	cmpq	$0, %r8
-	je	then20251
-	jmp	end20252
+        movq    %rdi, %rbx
+        movq    %rsi, %r13
+        movq    %rdx, %r13
+        leaq    explosionEntry(%rip), %r14
+        movq    free_ptr(%rip), %r8
+        addq    $16, %r8
+        cmpq    fromspace_end(%rip), %r8
+        setl    %al
+        movzbq  %al, %r8
+        cmpq    $0, %r8
+        je      then20251
+        jmp     end20252
 then20251:
-	movq	%rbx, %r8
-	addq	$0, %r8
-	movq	%r8, %rdi
-	movq	$16, %rsi
-	callq	collect
+        movq    %rbx, %r8
+        addq    $0, %r8
+        movq    %r8, %rdi
+        movq    $16, %rsi
+        callq   collect
 end20252:
-	movq	free_ptr(%rip), %r8
-	addq	$16, free_ptr(%rip)
-	movq	$3, 0(%r8)
-	movq	%r14, 8(%r8)
-	movq	$0, %r14
-	addq	$0, %r13
-	movq	8(%r8), %r12
-	movq	%rbx, %rdi
-	movq	%r8, %rsi
-	movq	%r13, %rdx
-=====>  jmp	*%r12
+        movq    free_ptr(%rip), %r8
+        addq    $16, free_ptr(%rip)
+        movq    $3, 0(%r8)
+        movq    %r14, 8(%r8)
+        movq    $0, %r14
+        addq    $0, %r13
+        movq    8(%r8), %r12
+        movq    %rbx, %rdi
+        movq    %r8, %rsi
+        movq    %r13, %rdx
+=====>  jmp     *%r12
 
-	movq	-8(%rbp), %r14
-	movq	-16(%rbp), %r13
-	movq	-24(%rbp), %r12
-	movq	-32(%rbp), %rbx
-	addq	$32, %rsp
-	popq	%rbp
-	retq	
+        movq    -8(%rbp), %r14
+        movq    -16(%rbp), %r13
+        movq    -24(%rbp), %r12
+        movq    -32(%rbp), %rbx
+        addq    $32, %rsp
+        popq    %rbp
+retq	
 \end{minted}
 \end{multicols}
 
