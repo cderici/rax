@@ -303,14 +303,9 @@ necessary functionality.
   the \emph{app} node. We first put the rootstack variable to rdi, and
   move the arguments to the arg-registers and add an unconditional
   jump (\emph{jmp}) in place of a \emph{callq}.
-\item \textbf{print-x86-64}: In order for every function to
-  potentially use the same stack space, the main function needs to
-  open up stack space (\emph{subq} rsp) enough to accommodate each
-  individual function. This is handled by using in each function
-  (including the main) the maximum amount of space needed by the
-  individual functions. The function printer is adjusted to use the
-  maximum space, rather than the individual i's reported in define
-  nodes.
+\item \textbf{print-x86-64}: We implement here the requirement that
+  all functions reserve the exact same amount of stack space in
+  their preludes, and take back an equal amount in their conclusions.
 \end{itemize}
 
 \section{Measuring the benefits of TCO}
