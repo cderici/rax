@@ -48,20 +48,20 @@
 \maketitle
 
 \begin{abstract}
-  Tail-call elimination is an important optimization that the
-  functional languages heavily rely upon. It's based on the
+  Tail-call elimination is an important optimization that
+  functional languages heavily rely upon. It is based on the
   observation that a stack frame for a function call in a
-  tail-position can be eliminated by re-using the caller's frame. This
-  makes the tail-recursion to be computationally equivalent to the
-  looping constructs (e.g. for, while) in imperative languages.
+  tail position can be eliminated by reusing the caller's frame. This
+  makes tail recursion computationally equivalent to
+  looping constructs (e.g. \verb+for+, \verb+while+) in imperative languages.
 
-  We implemented the tail-call elimination on $R_5$ by making the
+  We implemented tail-call elimination (TCO) on $R_5$ by making
   functions jump to the callee in the assembly level instead of making
-  a regular function call, resulting in manual handling of the stack
-  space. This allowed us to be able to reuse the same space for the
+  regular function calls, resulting in manual handling of the stack
+  space. This allowed us to be able to reuse the same stack space for
   function calls, which essentially kept the space complexity at a
   constant factor. We also had to change the closure representation,
-  allowing us to handle the higher order functions as well.
+  which allows us to handle higher-order functions as well.
 \end{abstract}
 
 \section{Tail Calls}
