@@ -6,6 +6,7 @@
 \usepackage{xparse}
 \usepackage{minted}
 \usepackage{graphicx} % Allows including images
+\usepackage{multicol}
 
 \begin{document}
 
@@ -158,7 +159,134 @@ fancy static analysis that we were afraid to implement. As a result, we successf
 completed all three milestones.
 
 \section{Code changes}
-Caner
+Along with the minor improvements, there are two main ideas in
+implementing tail-call optimizations in $R_5$.
+
+\begin{itemize}
+\item Creating the necessary entry labeling for functions to be called
+  (i.e. jumped) from a tail-position, and producing unconditional
+  jumps (instead of regular \emph{callq}s) for all the tail-calls inside.
+\item Changing the internal closure representation to contain the
+  tail-call entry label along with the regular label carried by the
+  \emph{function-ref}.
+\end{itemize}
+
+\subsection{Labeling}
+
+$R_5$ originally prouduces a single label for a function to be used by
+the assembler when making a function call. We created an additional
+label to be used to enter the function when it's called (i.e. jumped)
+from a tail-position inside of its caller function. Below is the code
+produced for the explosion function with the labels.
+
+\begin{multicols}{2}
+\begin{minted}[fontsize=\tiny]{as}
+	.globl explosion
+explosion:
+	pushq	%rbp
+	movq	%rsp, %rbp
+	subq	$32, %rsp
+	movq	%r14, -8(%rbp)
+	movq	%r13, -16(%rbp)
+	movq	%r12, -24(%rbp)
+	movq	%rbx, -32(%rbp)
+explosionEntry:  <========
+
+	movq	%rdi, %rbx
+	movq	%rsi, %r13
+	movq	%rdx, %r13
+	leaq	explosionEntry(%rip), %r14
+	movq	free_ptr(%rip), %r8
+	addq	$16, %r8
+	cmpq	fromspace_end(%rip), %r8
+	setl	%al
+	movzbq	%al, %r8
+	cmpq	$0, %r8
+	je	then20251
+	jmp	end20252
+then20251:
+	movq	%rbx, %r8
+	addq	$0, %r8
+	movq	%r8, %rdi
+	movq	$16, %rsi
+	callq	collect
+end20252:
+	movq	free_ptr(%rip), %r8
+	addq	$16, free_ptr(%rip)
+	movq	$3, 0(%r8)
+	movq	%r14, 8(%r8)
+	movq	$0, %r14
+	addq	$0, %r13
+	movq	8(%r8), %r12
+	movq	%rbx, %rdi
+	movq	%r8, %rsi
+	movq	%r13, %rdx
+=====>  jmp	*%r12
+
+	movq	-8(%rbp), %r14
+	movq	-16(%rbp), %r13
+	movq	-24(%rbp), %r12
+	movq	-32(%rbp), %rbx
+	addq	$32, %rsp
+	popq	%rbp
+	retq	
+\end{minted}
+\end{multicols}
+
+Having a label after the function prelude in the assembly allows us to
+eliminate the regular stack handling when entering the function. This
+clearly requires of course adjusting the stack (e.g. putting the
+function arguments in the argument registers, rdi rsi rdx rcx r8 r9,
+as well as stack positions) right before the jump at the call
+site. Additionally, all the tail-calls inside of the function are
+turned from \emph{callq} into unconditional \emph{jmp}s.
+
+\subsection{Closure Representation}
+
+One of the crucial changes in implementing tail-call elimination on
+$R_5$ is the closure reprepresentation. Originally the closures were
+represented by a vector of a function reference and the free variables
+inside of the function.
+
+\begin{equation*}
+(lambda: (ps \ldots) : rt\ body) \mapsto (vector\ label\ fvs \ldots)
+\end{equation*}
+
+The problem with this representation is especially visible in the case
+of higher order functions. Since the higher order functions are passed
+as parameters, there is no way to know from the function reference
+itself if the function is going to be used in tail-position or not
+(i.e. so it's not clear which label to use to call/jump). Therefore,
+we add to the closure representation also the entry label along with
+the regular label for the function.
+
+\begin{equation*}
+(lambda: (ps \ldots) : rt\ body) \mapsto (vector\ label\ entry-label\ fvs \ldots)
+\end{equation*}
+
+This allows us to produce the entry-label when the closure is used in
+tail-position, and the regular label otherwise.
+
+\subsection{Changes In the Passes}
+
+Along with the labeling and closure representation, couple of passes
+needed to be improved to handle the new forms and implement the
+necessary functionality.
+
+\begin{itemize}
+\item \textbf{reveal-functions}: This is the part of the compiler that
+  takes into account the tail-positions. In order to do this, we added
+  an additional parameter called \emph{tail?} to indicate at every
+  step whether we are in a tail-position or not. When revealing a
+  function call, we produce a \emph{tail-app} node to indicate we're
+  making a tail-call if the \emph{tail?} is true, and produce an
+  \emph{app} node otherwise.
+\item \textbf{convert-to-closures}:
+\item \textbf{flatten} :
+\item \textbf{select-instructions}:
+\item \textbf{register-allocation}:
+\item \textbf{print-x86-64}:
+\end{itemize}
 
 \section{Measuring the benefits of TCO}
 
