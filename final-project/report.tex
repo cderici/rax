@@ -114,11 +114,12 @@ recursive function, this essentially keeps overwriting the stack frame
 of the first call, making the whole computation safe-for-space.
 
 \section{Function calls in R5}
-$R_5$ originally doesn't take into account the tail-positions, thus
-ignoring that a function call might be a tail-call and a single frame
-is enough to compute both the caller and the callee functions. This
-behavior disallows not only the deep tail-recursive functions to be
-computed, but also infinite loops such as :
+$R_5$, as originally defined in its reference implementation, doesn't take into
+account whether function calls are in tail position, so it is completely oblivious to
+any possibility of reusing the stack for tail calls. An unforunate consequence of this design
+is that it is quite easy to define recursive $R_5$ functions that use up all available
+stack space. Real-life examples of such functions include deeply tail-recursive functions
+and infinite loops, e.g.,
 
 \begin{minted}[fontsize=\small]{Scheme}
 (define (explosion [n : Integer]) : Integer
@@ -127,10 +128,12 @@ computed, but also infinite loops such as :
 (explosion 0)
 \end{minted}
 
-Without the tail-call optimization, the corresponding assembly runtime
-of this function will essentially be an infinite sequence of
-\emph{callq}s, resulting in an explosion of stack frames (hence the
-name).
+Without TCO, the generated assembly code for this function
+will essentially be an infinite sequence of
+\verb+callq+s and \verb+subq+s on the stack pointer, resulting in an
+explosion of stack frames (hence the name). This is a problem. Not only does this
+$R_5$ not meet the requirements of the Scheme report (which requires implementations
+to be tail-recursive), but we can't even make infinite loops that are \emph{infinite}!
 
 \section{Project goals}
 
