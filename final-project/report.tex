@@ -66,8 +66,8 @@
 
 \section{Tail Calls}
 
-A tail-call is a function call in a tail-position inside of a
-function. A tail-position is a fixed syntactic region of code that
+A tail call is a function call in a tail position inside of a
+function. A tail position is a fixed syntactic region of code that
 signifies the idea of a ``last action of a function''. For example,
 consider the following structurally recursive factorial function.
 
@@ -78,13 +78,13 @@ consider the following structurally recursive factorial function.
       [else (* n (fact (sub1 n)))]))
 \end{minted}
 
-The ``(fact (sub1 n))'' call inside of this function is \emph{not} in
-a tail-position, since for example after a ``(fact (sub1 5))'' call,
-``(fact 5)'' call has to multiply the result of ``(fact (sub1 5))''
-with 5, i.e. there's still something to do after the function
-call. Because of this, we cannot overwrite the stack frame of ``(fact
-5)'', since we still have to keep the 5 until after the ``(fact (sub1
-5))'' returns (to multiply with it).
+The \verb+(fact (sub1 n))+ call inside of this function is \emph{not} in
+a tail position. For example, when \verb+(fact 5)+ is invoked, the result of
+the recursive call \verb+(fact (sub1 5))+ has to be multiplied with \verb+5+,
+i.e. there's still something to do after the function
+call. Because of this, we cannot overwrite the stack frame of \verb+(fact 5)+,
+since we still have to keep the \verb+5+ until after \verb+(fact (sub1 5))+
+returns (to multiply with it).
 
 However, consider the following tail-recursive factorial function.
 
@@ -95,12 +95,12 @@ However, consider the following tail-recursive factorial function.
       [else (fact-tail (sub1 n) (* n acc))]))
 \end{minted}
 
-Now the only action that the ``(fact 5 1)'' call will perform with the
-result of ``(fact 4 5)'' is to return it. The key observation here is
-that the results of ``(fact 5 1)'' and ``(fact 4 5)'' (and all the
+Now the only action that a \verb+(fact 5 1)+ call will perform with the
+result of \verb+(fact 4 5)+ is to return it. The key observation here is
+that the results of \verb+(fact 5 1)+ and \verb+(fact 4 5)+ (and all the
 subsequent calls in the computation sequence) are the same. Figure~1
-shows the stack progression along with the return values for each type
-of functions.
+shows the stack progression along with the return values for each function
+invocation.
 
 \begin{figure}[htb!]
   \centering
@@ -108,10 +108,10 @@ of functions.
   \caption{Stack Progressions of Regular and Tail Recursive Calls}
 \end{figure}
 
-This observation is the central idea behind the tail-call elimination,
-as the two subsequent tail-calls can use the same stack frame. In a
+This observation is the central idea behind tail-call elimination,
+as the two subsequent tail calls can use the same stack frame. In a
 recursive function, this essentially keeps overwriting the stack frame
-of the first call, making the whole computation to be safe-for-space.
+of the first call, making the whole computation safe-for-space.
 
 \section{Function calls in R5}
 $R_5$ originally doesn't take into account the tail-positions, thus
