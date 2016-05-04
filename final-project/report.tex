@@ -5,6 +5,7 @@
 \usepackage{latexsym}
 \usepackage{xparse}
 \usepackage{minted}
+\usepackage{hyperref}
 \usepackage{graphicx} % Allows including images
 \usepackage{multicol}
 
@@ -48,27 +49,33 @@
  
 \maketitle
 
-\begin{abstract}
-  Tail-call elimination is an important optimization that the
-  functional languages heavily rely upon. It's based on the
-  observation that a stack frame for a function call in a
-  tail-position can be eliminated by re-using the caller's frame. This
-  makes the tail-recursion to be computationally equivalent to the
-  looping constructs (e.g. for, while) in imperative languages.
+(\emph{Nota bene}: The code for this project is located at
+\url{https://github.iu.edu/cderici/P523/tree/tail-call-optimization}. Our changes
+were regression-tested against all of the original tests for $R_1$ through
+$R_7$ in the \verb+tests/+ subdirectory, and we also added new tests, prefixed
+with \verb+tco_+, to test our new additions.)
 
-  We implemented the tail-call elimination on $R_5$ by making the
+\begin{abstract}
+  Tail-call elimination is an important optimization that
+  functional languages heavily rely upon. It is based on the
+  observation that a stack frame for a function call in a
+  tail position can be eliminated by reusing the caller's frame. This
+  makes tail recursion computationally equivalent to
+  looping constructs (e.g. \verb+for+, \verb+while+) in imperative languages.
+
+  We implemented tail-call elimination (TCO) on $R_5$ by making
   functions jump to the callee in the assembly level instead of making
-  a regular function call, resulting in manual handling of the stack
-  space. This allowed us to be able to reuse the same space for the
+  regular function calls, resulting in manual handling of the stack
+  space. This allowed us to be able to reuse the same stack space for
   function calls, which essentially kept the space complexity at a
   constant factor. We also had to change the closure representation,
-  allowing us to handle the higher order functions as well.
+  which allows us to handle higher-order functions as well.
 \end{abstract}
 
 \section{Tail Calls}
 
-A tail-call is a function call in a tail-position inside of a
-function. A tail-position is a fixed syntactic region of code that
+A tail call is a function call in a tail position inside of a
+function. A tail position is a fixed syntactic region of code that
 signifies the idea of a ``last action of a function''. For example,
 consider the following structurally recursive factorial function.
 
@@ -79,13 +86,13 @@ consider the following structurally recursive factorial function.
       [else (* n (fact (sub1 n)))]))
 \end{minted}
 
-The ``(fact (sub1 n))'' call inside of this function is \emph{not} in
-a tail-position, since for example after a ``(fact (sub1 5))'' call,
-``(fact 5)'' call has to multiply the result of ``(fact (sub1 5))''
-with 5, i.e. there's still something to do after the function
-call. Because of this, we cannot overwrite the stack frame of ``(fact
-5)'', since we still have to keep the 5 until after the ``(fact (sub1
-5))'' returns (to multiply with it).
+The \verb+(fact (sub1 n))+ call inside of this function is \emph{not} in
+a tail position. For example, when \verb+(fact 5)+ is invoked, the result of
+the recursive call \verb+(fact (sub1 5))+ has to be multiplied with \verb+5+,
+i.e. there's still something to do after the function
+call. Because of this, we cannot overwrite the stack frame of \verb+(fact 5)+,
+since we still have to keep the \verb+5+ until after \verb+(fact (sub1 5))+
+returns (to multiply with it).
 
 However, consider the following tail-recursive factorial function.
 
@@ -96,12 +103,12 @@ However, consider the following tail-recursive factorial function.
       [else (fact-tail (sub1 n) (* n acc))]))
 \end{minted}
 
-Now the only action that the ``(fact 5 1)'' call will perform with the
-result of ``(fact 4 5)'' is to return it. The key observation here is
-that the results of ``(fact 5 1)'' and ``(fact 4 5)'' (and all the
+Now the only action that a \verb+(fact 5 1)+ call will perform with the
+result of \verb+(fact 4 5)+ is to return it. The key observation here is
+that the results of \verb+(fact 5 1)+ and \verb+(fact 4 5)+ (and all the
 subsequent calls in the computation sequence) are the same. Figure~1
-shows the stack progression along with the return values for each type
-of functions.
+shows the stack progression along with the return values for each function
+invocation.
 
 \begin{figure}[htb!]
   \centering
@@ -109,17 +116,18 @@ of functions.
   \caption{Stack Progressions of Regular and Tail Recursive Calls}
 \end{figure}
 
-This observation is the central idea behind the tail-call elimination,
-as the two subsequent tail-calls can use the same stack frame. In a
+This observation is the central idea behind tail-call elimination,
+as the two subsequent tail calls can use the same stack frame. In a
 recursive function, this essentially keeps overwriting the stack frame
-of the first call, making the whole computation to be safe-for-space.
+of the first call, making the whole computation safe-for-space.
 
 \section{Function calls in R5}
-$R_5$ originally doesn't take into account the tail-positions, thus
-ignoring that a function call might be a tail-call and a single frame
-is enough to compute both the caller and the callee functions. This
-behavior disallows not only the deep tail-recursive functions to be
-computed, but also infinite loops such as :
+$R_5$, as originally defined in its reference implementation, doesn't take into
+account whether function calls are in tail position, so it is completely oblivious to
+any possibility of reusing the stack for tail calls. An unforunate consequence of this design
+is that it is quite easy to define recursive $R_5$ functions that use up all available
+stack space. Real-life examples of such functions include deeply tail-recursive functions
+and infinite loops, e.g.,
 
 \begin{minted}[fontsize=\small]{Scheme}
 (define (explosion [n : Integer]) : Integer
@@ -128,10 +136,12 @@ computed, but also infinite loops such as :
 (explosion 0)
 \end{minted}
 
-Without the tail-call optimization, the corresponding assembly runtime
-of this function will essentially be an infinite sequence of
-\emph{callq}s, resulting in an explosion of stack frames (hence the
-name).
+Without TCO, the generated assembly code for this function
+will essentially be an infinite sequence of
+\verb+callq+s and \verb+subq+s on the stack pointer, resulting in an
+explosion of stack frames (hence the name). This is a problem. Not only does this
+$R_5$ not meet the requirements of the Scheme report (which requires implementations
+to be tail-recursive), but we can't even make infinite loops that are \emph{infinite}!
 
 \section{Project goals}
 
