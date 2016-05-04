@@ -124,7 +124,7 @@ of the first call, making the whole computation safe-for-space.
 \section{Function calls in R5}
 $R_5$, as originally defined in its reference implementation, doesn't take into
 account whether function calls are in tail position, so it is completely oblivious to
-any possibility of reusing the stack for tail calls. An unforunate consequence of this design
+any possibility of reusing the stack for tail calls. An unfortunate consequence of this design
 is that it is quite easy to define recursive $R_5$ functions that use up all available
 stack space. Real-life examples of such functions include deeply tail-recursive functions
 and infinite loops, e.g.,
@@ -244,39 +244,40 @@ retq
 \end{minted}
 \end{multicols}
 
-Having a label after the function prelude in the assembly allows us to
-eliminate the regular stack handling when entering the function. This
-clearly requires of course adjusting the stack (e.g. putting the
-function arguments in the argument registers, rdi rsi rdx rcx r8 r9,
-as well as stack positions) right before the jump at the call
-site. Additionally, all the tail-calls inside of the function are
-turned from \emph{callq} into unconditional \emph{jmp}s.
+Having a label \emph{after} the function prelude in the assembly allows us to
+eliminate the regular stack handling when entering the function. Of course, this
+requires adjusting the stack (e.g. putting the
+function arguments in the argument registers and stack arguments) right before
+the jump at the call site. Additionally, all the tail calls inside of the function
+are no longer \verb+callq+s, but rather unconditional \verb+jmp+s.
 
 \subsection{Closure Representation}
 
-One of the crucial changes in implementing tail-call elimination on
-$R_5$ is the closure reprepresentation. Originally the closures were
-represented by a vector of a function reference and the free variables
-inside of the function.
+One of the crucial changes in implementing tail-call elimination in
+$R_5$ involves the closure representation. Originally, closures were
+represented by a vector containing a function reference and the free variables
+inside of the function:
 
 \begin{equation*}
 (lambda: (ps \ldots) : rt\ body) \mapsto (vector\ label\ fvs \ldots)
 \end{equation*}
 
-The problem with this representation is especially visible in the case
-of higher order functions. Since the higher order functions are passed
+The problem with this representation is especially apparent when dealing with
+higher-order functions. Since higher-order functions can be passed around
 as parameters, there is no way to know from the function reference
-itself if the function is going to be used in tail-position or not
-(i.e. so it's not clear which label to use to call/jump). Therefore,
-we add to the closure representation also the entry label along with
-the regular label for the function.
+itself if the function is going to be used in tail position or not
+(i.e. it's not clear which label to use to call/jump to). Therefore,
+we add to the closure representation the entry label, along with
+the regular label for the function:
 
 \begin{equation*}
-(lambda: (ps \ldots) : rt\ body) \mapsto (vector\ label\ entry-label\ fvs \ldots)
+(lambda: (ps \ldots) : rt\ body) \mapsto (vector\ label\ entry \text{-} label\ fvs \ldots)
 \end{equation*}
 
-This allows us to produce the entry-label when the closure is used in
-tail-position, and the regular label otherwise.
+This allows us to retrieve the entry-label from the closure when a function
+is used in tail-position, and the regular label otherwise. This way, we
+can always be assured that whenever we invoke \verb+callq+ or \verb+jmp+ in
+assembly, we are using the correct label.
 
 \subsection{Changes In the Passes}
 
