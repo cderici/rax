@@ -72,7 +72,7 @@ with \verb+tco_+, to test our new additions.)
   which allows us to handle higher-order functions as well.
 \end{abstract}
 
-\section{Tail Calls}
+\section{Tail calls}
 
 A tail call is a function call in a tail position inside of a
 function. A tail position is a fixed syntactic region of code that
@@ -251,7 +251,7 @@ function arguments in the argument registers and stack arguments) right before
 the jump at the call site. Additionally, all the tail calls inside of the function
 are no longer \verb+callq+s, but rather unconditional \verb+jmp+s.
 
-\subsection{Closure Representation}
+\subsection{Closure representation}
 
 One of the crucial changes in implementing tail-call elimination in
 $R_5$ involves the closure representation. Originally, closures were
@@ -279,34 +279,37 @@ is used in tail-position, and the regular label otherwise. This way, we
 can always be assured that whenever we invoke \verb+callq+ or \verb+jmp+ in
 assembly, we are using the correct label.
 
-\subsection{Changes In the Passes}
+\subsection{Changes in the passes}
 
-Along with the labeling and closure representation, couple of passes
+Along with the changes to labeling and closure representation, a couple of passes
 needed to be improved to handle the new forms and implement the
 necessary functionality.
 
 \begin{itemize}
 \item \textbf{reveal-functions}: This is the part of the compiler that
-  takes into account the tail-positions. In order to do this, we added
-  an additional parameter called \emph{tail?} to indicate at every
-  step whether we are in a tail-position or not. When revealing a
-  function call, we produce a \emph{tail-app} node to indicate we're
-  making a tail-call if the \emph{tail?} is true, and produce an
-  \emph{app} node otherwise.
-\item \textbf{convert-to-closures}: This is where new closure
-  representation is being employed.
+  marks whether function calls are in tail position. In order to do this,
+  we added an additional parameter called \verb+tail?+ to indicate at every
+  step whether we are in a tail position or not. When revealing a
+  function call, we produce a \verb+tail-app+ node to indicate we're
+  making a tail call if \verb+tail?+ is true, and produce an
+  \verb+app+ node otherwise.
+\item \textbf{convert-to-closures}: We changed the handling for \verb+function-ref+s
+  and lambdas to produce closure code using the new representation.
 \item \textbf{flatten}: When flattening the program, we treat
-  \emph{tail-app}s as simple expressions and don't assign them to a
-  variable. This is to reflect the idea that a tail-call is the last
+  \verb+tail-app+s as simple expressions and don't assign them to a
+  variable. This is to reflect the idea that a tail call is the last
   operation that the function will perform.
-\item \textbf{select-instructions}: We add here the handling of the
-  \emph{tail-app} node, which is almost identical to the handling of
-  the \emph{app} node. We first put the rootstack variable to rdi, and
-  move the arguments to the arg-registers and add an unconditional
-  jump (\emph{jmp}) in place of a \emph{callq}.
-\item \textbf{print-x86-64}: We implement here the requirement that
-  all functions reserve the exact same amount of stack space in
-  their preludes, and take back an equal amount in their conclusions.
+\item \textbf{select-instructions}: We handled the
+  \verb+tail-app+ node very similarly to how we handle the
+  the \verb+app+ node. We first put the rootstack variable into \verb+%rdi+,
+  move the arguments into the argument registers, and then perform an unconditional
+  jump (\verb+jmp+) in place of a \verb+callq+.
+\item \textbf{print-x86-64}: We changed the code that generates the preludes and
+  conclusions such that all functions reserve the exact same amount of stack space
+  in their preludes, and take back an equal amount in their conclusions. This
+  ensures that if a function tail-calls into another, that the appropriate
+  amount of space will be added back to the stack pointer. If not,
+  the caller function's stack might get clobbered!
 \end{itemize}
 
 \section{Measuring the benefits of TCO}
