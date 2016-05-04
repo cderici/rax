@@ -5,6 +5,7 @@
 \usepackage{latexsym}
 \usepackage{xparse}
 \usepackage{minted}
+\usepackage{hyperref}
 \usepackage{graphicx} % Allows including images
 
 \begin{document}
@@ -46,6 +47,12 @@
 \author{Caner Derici and Ryan Scott} 
  
 \maketitle
+
+(\emph{Nota bene}: The code for this project is located at
+\url{https://github.iu.edu/cderici/P523/tree/tail-call-optimization}. Our changes
+were regression-tested against all of the original tests for $R_1$ through
+$R_7$ in the \verb+tests/+ subdirectory, and we also added new tests, prefixed
+with \verb+tco_+, to test our new additions.)
 
 \begin{abstract}
   Tail-call elimination is an important optimization that
