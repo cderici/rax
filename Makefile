@@ -25,6 +25,3 @@ test: runtime.o
 
 clean:
 	$(RM) -f *.o *.out *.exe *.s *~
-
-proposal:
-	pdflatex final-project/proposal.tex
